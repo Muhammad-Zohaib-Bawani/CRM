@@ -8,8 +8,8 @@ const ROLES = [
 ];
 
 const SAMPLE_EMAIL = {
-  admin: 'admin@helio.app',
-  agent: 'omar@helio.app',
+  admin: 'admin@gcat.app',
+  agent: 'omar@gcat.app',
 };
 
 export default function Login() {
@@ -40,9 +40,8 @@ export default function Login() {
     <div className="login-page">
       <div className="login-hero">
         <div className="brand-block">
-          <div className="brand-mark">h</div>
-          <h1>Helio</h1>
-          <p>Operations CRM</p>
+          <img src="/Images/logo_light.png" alt="GCAT CRM" className="login-logo" />
+          <p className="login-project-name">GCAT CRM</p>
         </div>
         <div className="quote">
           A single workspace for tickets, broadcasts, and structured intake —
@@ -75,7 +74,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@helio.app"
+              placeholder="you@gcat.app"
               required
             />
           </div>
@@ -105,7 +104,7 @@ export default function Login() {
           <div className="demo-creds">
             <strong>Demo mode:</strong> Any password works. Try these accounts —
             <br />
-            <code>admin@helio.app</code> · <code>omar@helio.app</code>
+            <code>admin@gcat.app</code> · <code>omar@gcat.app</code>
           </div>
         </form>
       </div>

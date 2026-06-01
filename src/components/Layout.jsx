@@ -30,11 +30,7 @@ export default function Layout() {
     <>
       <header className="topbar">
         <div className="brand">
-          <div className="brand-logo">h</div>
-          <div className="brand-text">
-            <div className="l1">Helio</div>
-            <div className="l2">Operations CRM</div>
-          </div>
+          <img src="/Images/logo_light.png" alt="GCAT CRM" className="topbar-logo" />
         </div>
 
         <div className="top-actions">
@@ -60,23 +56,27 @@ export default function Layout() {
 
       <div className="layout">
         <aside className="sidebar">
-          <h4>Workspace</h4>
-          {items.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.to === '/'}
-              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-            >
-              <i className={`fa-solid ${item.icon}`} />
-              {item.label}
-            </NavLink>
-          ))}
+          <h4>Quick Menu</h4>
+          <div className="nav-grid">
+            {items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                className={({ isActive }) => `nav-card ${isActive ? 'active' : ''}`}
+              >
+                <i className={`fa-solid ${item.icon}`} />
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
 
           <h4>Account</h4>
-          <div className="nav-item" onClick={handleLogout} role="button">
-            <i className="fa-solid fa-arrow-right-from-bracket" />
-            Sign out
+          <div className="nav-grid">
+            <div className="nav-card" onClick={handleLogout} role="button">
+              <i className="fa-solid fa-arrow-right-from-bracket" />
+              Sign out
+            </div>
           </div>
         </aside>
 

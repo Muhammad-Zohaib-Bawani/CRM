@@ -1,12 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
 import RichTextEditor from '../components/RichTextEditor.jsx';
 import ImportRecipientsModal from '../components/ImportRecipientsModal.jsx';
+import SelectRecipientsModal from '../components/SelectRecipientsModal.jsx';
+import ImportFromExcelModal from '../components/ImportFromExcelModal.jsx';
 
 export default function Notifications() {
   const { user } = useAuth();
   const { forms, notifications, sendNotification, showToast } = useData();
+  const navigate = useNavigate();
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -16,9 +20,10 @@ export default function Notifications() {
   const [imported, setImported] = useState([]); // array of contacts pulled in via Import
   const [excluded, setExcluded] = useState(() => new Set()); // ids unchecked from the imported list
 
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [formPickerOpen, setFormPickerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
+  const [excelOpen, setExcelOpen] = useState(false);
 
   const activeRecipients = imported.filter((c) => !excluded.has(c.id));
 
@@ -119,7 +124,7 @@ export default function Notifications() {
             sent in total
           </div>
         </div>
-        <button className="btn btn-ghost" onClick={() => setHistoryOpen(true)}>
+        <button className="btn btn-ghost" onClick={() => navigate('/notification-history')}>
           <i className="fa-solid fa-clock-rotate-left" /> History
         </button>
       </div>
@@ -196,12 +201,22 @@ export default function Notifications() {
         <RecipientsSidebar
           imported={imported}
           excluded={excluded}
+          onOpenSelect={() => setSelectOpen(true)}
           onOpenImport={() => setImportOpen(true)}
+          onOpenExcel={() => setExcelOpen(true)}
           onToggle={toggleExcluded}
           onRemove={removeImported}
           onClear={clearImported}
         />
       </div>
+
+      {selectOpen && (
+        <SelectRecipientsModal
+          currentlyImported={imported}
+          onImport={handleImport}
+          onClose={() => setSelectOpen(false)}
+        />
+      )}
 
       {importOpen && (
         <ImportRecipientsModal
@@ -211,23 +226,40 @@ export default function Notifications() {
         />
       )}
 
+      {excelOpen && (
+        <ImportFromExcelModal
+          onImport={handleImport}
+          onClose={() => setExcelOpen(false)}
+        />
+      )}
+
       {formPickerOpen && (
         <FormPicker forms={forms} onPick={insertFormLink} onClose={() => setFormPickerOpen(false)} />
       )}
 
-      {historyOpen && (
-        <NotificationHistory notifications={notifications} onClose={() => setHistoryOpen(false)} />
-      )}
     </div>
   );
 }
 
-function RecipientsSidebar({ imported, excluded, onOpenImport, onToggle, onRemove, onClear }) {
+function RecipientsSidebar({ imported, excluded, onOpenSelect, onOpenImport, onOpenExcel, onToggle, onRemove, onClear }) {
   const active = imported.filter((c) => !excluded.has(c.id));
   const [search, setSearch] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const visible = search.trim()
     ? imported.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.email.toLowerCase().includes(search.toLowerCase()))
     : imported;
+
+  const openOption = (fn) => { setMenuOpen(false); fn(); };
 
   return (
     <div className="card recipients-card">
@@ -242,15 +274,46 @@ function RecipientsSidebar({ imported, excluded, onOpenImport, onToggle, onRemov
         )}
       </div>
 
-      <button
-        type="button"
-        className="btn btn-primary"
-        onClick={onOpenImport}
-        style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-      >
-        <i className="fa-solid fa-file-import" />
-        {imported.length === 0 ? 'Import Recipients' : 'Import More'}
-      </button>
+      {/* 3-option dropdown button */}
+      <div ref={menuRef} style={{ position: 'relative' }}>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setMenuOpen((v) => !v)}
+          style={{ width: '100%', justifyContent: 'space-between', padding: '12px 16px' }}
+        >
+          <span><i className="fa-solid fa-user-plus" style={{ marginRight: 8 }} />
+            {imported.length === 0 ? 'Add Recipients' : 'Add More'}
+          </span>
+          <i className={`fa-solid fa-chevron-${menuOpen ? 'up' : 'down'}`} style={{ fontSize: 11 }} />
+        </button>
+
+        {menuOpen && (
+          <div className="recipient-dropdown">
+            <button className="recipient-dropdown-item" onClick={() => openOption(onOpenSelect)}>
+              <span className="rdi-icon"><i className="fa-solid fa-users" /></span>
+              <div>
+                <div className="rdi-label">Select Recipients</div>
+                <div className="rdi-sub">Pick from local system users</div>
+              </div>
+            </button>
+            <button className="recipient-dropdown-item" onClick={() => openOption(onOpenImport)}>
+              <span className="rdi-icon"><i className="fa-solid fa-filter" /></span>
+              <div>
+                <div className="rdi-label">Import Recipients</div>
+                <div className="rdi-sub">Filter & import from the contact pool</div>
+              </div>
+            </button>
+            <button className="recipient-dropdown-item" onClick={() => openOption(onOpenExcel)}>
+              <span className="rdi-icon"><i className="fa-solid fa-file-excel" /></span>
+              <div>
+                <div className="rdi-label">Import from Excel</div>
+                <div className="rdi-sub">Upload .xlsx, .xls or .csv file</div>
+              </div>
+            </button>
+          </div>
+        )}
+      </div>
 
       {imported.length === 0 ? (
         <div className="recipients-empty">
@@ -363,169 +426,6 @@ function FormPicker({ forms, onPick, onClose }) {
             </div>
           )}
         </div>
-        <div className="modal-foot">
-          <button className="btn btn-ghost" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function stripHtml(html) {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-  return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
-}
-
-function NotificationHistory({ notifications, onClose }) {
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [search, setSearch] = useState('');
-
-  const filtered = useMemo(() => {
-    const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
-    const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
-    const q = search.trim().toLowerCase();
-    return notifications.filter((n) => {
-      const ts = new Date(n.sentAt).getTime();
-      if (fromTs && ts < fromTs) return false;
-      if (toTs && ts > toTs) return false;
-      if (q && !n.subject.toLowerCase().includes(q) && !stripHtml(n.body).toLowerCase().includes(q)) return false;
-      return true;
-    });
-  }, [notifications, dateFrom, dateTo, search]);
-
-  // Group by send date (YYYY-MM-DD) for the "multiple emails in a day" presentation
-  const grouped = useMemo(() => {
-    const groups = new Map();
-    filtered.forEach((n) => {
-      const key = new Date(n.sentAt).toISOString().slice(0, 10);
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(n);
-    });
-    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [filtered]);
-
-  const totalRecipients = filtered.reduce((s, n) => s + (n.recipientCount || 0), 0);
-  const clearDates = () => { setDateFrom(''); setDateTo(''); };
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <div>
-            <h2>Notification History</h2>
-            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-              {filtered.length} of {notifications.length} broadcast{notifications.length === 1 ? '' : 's'}
-            </div>
-          </div>
-          <span className="close" onClick={onClose}><i className="fa-solid fa-xmark" /></span>
-        </div>
-
-        <div className="modal-body">
-          {/* SUMMARY */}
-          <div className="history-summary">
-            <div className="summary-card">
-              <div className="lbl">Total Sent</div>
-              <div className="val">{filtered.length}</div>
-              <div className="icon"><i className="fa-solid fa-paper-plane" /></div>
-            </div>
-            <div className="summary-card">
-              <div className="lbl">Total Recipients</div>
-              <div className="val">{totalRecipients}</div>
-              <div className="icon"><i className="fa-solid fa-users" /></div>
-            </div>
-            <div className="summary-card">
-              <div className="lbl">Last Sent</div>
-              <div className="val" style={{ fontSize: 16 }}>
-                {filtered.length > 0 ? new Date(filtered[0].sentAt).toLocaleDateString() : '—'}
-              </div>
-              <div className="icon"><i className="fa-solid fa-clock" /></div>
-            </div>
-          </div>
-
-          {/* DATE FILTER */}
-          <div className="history-filter-bar">
-            <div className="search" style={{ flex: 1 }}>
-              <i className="fa-solid fa-magnifying-glass" />
-              <input
-                type="text"
-                placeholder="Search subject or message…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="date-range">
-              <span className="date-range-label">Sent between</span>
-              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From date" />
-              <span style={{ color: 'var(--muted)' }}>→</span>
-              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To date" />
-              {(dateFrom || dateTo) && (
-                <button type="button" className="clear-dates" onClick={clearDates}>
-                  <i className="fa-solid fa-xmark" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {filtered.length === 0 ? (
-            <div className="empty-state" style={{ padding: 40 }}>
-              <i className="fa-solid fa-paper-plane" />
-              <h3>No matching broadcasts</h3>
-              <p>Try clearing the date range or search.</p>
-            </div>
-          ) : (
-            <div className="history-groups">
-              {grouped.map(([date, items]) => {
-                const d = new Date(date + 'T00:00:00');
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const yesterday = new Date(today);
-                yesterday.setDate(today.getDate() - 1);
-                let dayLabel;
-                if (d.getTime() === today.getTime()) dayLabel = 'Today';
-                else if (d.getTime() === yesterday.getTime()) dayLabel = 'Yesterday';
-                else dayLabel = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-
-                return (
-                  <div className="history-day-group" key={date}>
-                    <div className="history-day-head">
-                      <span className="day-label">{dayLabel}</span>
-                      <span className="day-count">{items.length} email{items.length === 1 ? '' : 's'}</span>
-                    </div>
-                    {items.map((n) => {
-                      const sentDate = new Date(n.sentAt);
-                      const preview = stripHtml(n.body);
-                      return (
-                        <div key={n.id} className="history-row">
-                          <div className="history-row-icon">
-                            <i className="fa-solid fa-envelope" />
-                          </div>
-                          <div className="history-row-body">
-                            <div className="history-row-head">
-                              <strong>{n.subject}</strong>
-                              <span className="time">{sentDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                            </div>
-                            <div className="history-row-meta">
-                              <span><i className="fa-solid fa-users" /> {n.recipientCount} recipient{n.recipientCount === 1 ? '' : 's'}</span>
-                              {n.attachments?.length > 0 && (
-                                <span><i className="fa-solid fa-paperclip" /> {n.attachments.length}</span>
-                              )}
-                            </div>
-                            <div className="history-row-preview">
-                              {preview.length > 200 ? preview.slice(0, 200) + '…' : preview}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
         <div className="modal-foot">
           <button className="btn btn-ghost" onClick={onClose}>Close</button>
         </div>

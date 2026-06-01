@@ -2,11 +2,11 @@
 // Equestrian/Arabian-tour domain: horses, owners, managers, shows, locations.
 
 export const USERS = [
-  { id: 'u-admin-1', name: 'Layla Al-Mansoori', email: 'admin@helio.app', role: 'admin', initials: 'LA' },
-  { id: 'u-admin-2', name: 'Hassan Al-Maktoum', email: 'hassan@helio.app', role: 'admin', initials: 'HM' },
-  { id: 'u-agent-1', name: 'Omar Khalifa', email: 'omar@helio.app', role: 'agent', initials: 'OK' },
-  { id: 'u-agent-2', name: 'Sara Vance', email: 'sara@helio.app', role: 'agent', initials: 'SV' },
-  { id: 'u-agent-3', name: 'Diego Ferrari', email: 'diego@helio.app', role: 'agent', initials: 'DF' },
+  { id: 'u-admin-1', name: 'Layla Al-Mansoori', email: 'admin@gcat.app', role: 'admin', initials: 'LA' },
+  { id: 'u-admin-2', name: 'Hassan Al-Maktoum', email: 'hassan@gcat.app', role: 'admin', initials: 'HM' },
+  { id: 'u-agent-1', name: 'Omar Khalifa', email: 'omar@gcat.app', role: 'agent', initials: 'OK' },
+  { id: 'u-agent-2', name: 'Sara Vance', email: 'sara@gcat.app', role: 'agent', initials: 'SV' },
+  { id: 'u-agent-3', name: 'Diego Ferrari', email: 'diego@gcat.app', role: 'agent', initials: 'DF' },
 ];
 
 export const MANAGERS = [

@@ -3,6 +3,7 @@ import Login from './pages/Login.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Tickets from './pages/Tickets.jsx';
 import Notifications from './pages/Notifications.jsx';
+import NotificationHistory from './pages/NotificationHistory.jsx';
 import Forms from './pages/Forms.jsx';
 import FormView from './pages/FormView.jsx';
 import Layout from './components/Layout.jsx';
@@ -28,6 +29,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['admin']}>
               <Notifications />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notification-history"
+          element={
+            <ProtectedRoute roles={['admin']}>
+              <NotificationHistory />
             </ProtectedRoute>
           }
         />
