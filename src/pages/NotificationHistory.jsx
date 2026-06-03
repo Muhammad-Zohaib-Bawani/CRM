@@ -101,7 +101,7 @@ export default function NotificationHistory() {
       </div>
 
       {/* Summary Cards */}
-      <div className="history-summary" style={{ marginBottom: 20 }}>
+      <div className="history-summary" style={{ marginBottom: 20 , marginTop: 20}}>
         <div className="summary-card">
           <div>
             <div className="lbl">{tab === 'recent' ? "Today's Broadcasts" : 'Past Broadcasts'}</div>

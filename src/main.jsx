@@ -5,6 +5,7 @@ import App from './App.jsx';
 import { AuthProvider } from './store/AuthContext.jsx';
 import { DataProvider } from './store/DataContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import './styles/tailwind.css';
 import './styles/global.css';
 import 'react-datepicker/dist/react-datepicker.css';
 import './styles/datepicker.css';

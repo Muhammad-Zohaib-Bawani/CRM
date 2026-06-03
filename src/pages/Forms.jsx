@@ -60,7 +60,7 @@ export default function Forms() {
       </div>
 
       {/* Tabs */}
-      <div className="notif-history-tabs" style={{ marginBottom: 24 }}>
+      <div className="notif-history-tabs !p-4" style={{ marginBottom: 24 }}>
         <button
           className={`notif-tab ${tab === 'local' ? 'active' : ''}`}
           onClick={() => setTab('local')}

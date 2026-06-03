@@ -4,6 +4,7 @@ import * as ticketApi from '../api/tickets.js';
 import * as notifApi from '../api/emailNotifications.js';
 import * as formApi from '../api/forms.js';
 import * as contactApi from '../api/contacts.js';
+import * as userApi from '../api/users.js';
 
 const DataContext = createContext(null);
 
@@ -15,33 +16,6 @@ function extractFormId(html) {
   return m ? m[1] : null;
 }
 
-const SEED_MANAGED_USERS = [
-  {
-    id: 'mu1', firstName: 'Sarah', lastName: 'Mitchell', name: 'Sarah Mitchell',
-    email: 'sarah@gcat.app', role: 'admin', country: 'US', dialCode: '+1',
-    mobile: '555 000 0001', initials: 'SM',
-  },
-  {
-    id: 'mu2', firstName: 'James', lastName: 'Carter', name: 'James Carter',
-    email: 'james@gcat.app', role: 'agent', country: 'GB', dialCode: '+44',
-    mobile: '7911 123456', initials: 'JC',
-  },
-  {
-    id: 'mu3', firstName: 'Amira', lastName: 'Hassan', name: 'Amira Hassan',
-    email: 'amira@gcat.app', role: 'agent', country: 'AE', dialCode: '+971',
-    mobile: '50 123 4567', initials: 'AH',
-  },
-  {
-    id: 'mu4', firstName: 'Robert', lastName: 'Klein', name: 'Robert Klein',
-    email: 'robert@gcat.app', role: 'user', country: 'DE', dialCode: '+49',
-    mobile: '155 1234 5678', initials: 'RK',
-  },
-  {
-    id: 'mu5', firstName: 'Priya', lastName: 'Sharma', name: 'Priya Sharma',
-    email: 'priya@gcat.app', role: 'user', country: 'IN', dialCode: '+91',
-    mobile: '98765 43210', initials: 'PS',
-  },
-];
 
 // API calls per page:
 //   /            → tickets, notifications, forms
@@ -63,14 +37,12 @@ export function DataProvider({ children }) {
   const [users, setUsers] = useState([]);
   const usersLoadedRef = useRef(false);
 
-  // ── Managed users: User Management page (local, no API) ──────────────────
-  const [managedUsers, setManagedUsers] = useState(SEED_MANAGED_USERS);
+  // ── Managed users: User Management page ──────────────────────────────────
+  const [managedUsers, setManagedUsers] = useState([]);
+  const [managedUsersLoading, setManagedUsersLoading] = useState(false);
+  const managedUsersLoadedRef = useRef(false);
+  const [roles, setRoles] = useState([]);
 
-  // ── Form responses: tracked locally + persisted in localStorage ───────────
-  const [formResponses, setFormResponses] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('gcat:formResponses') || '[]'); }
-    catch { return []; }
-  });
 
   // ── Agents: lazy — Tickets page only ─────────────────────────────────────
   const [agents, setAgents] = useState([]);
@@ -102,13 +74,12 @@ export function DataProvider({ children }) {
       setUsers([]); setAgents([]);
       setManagers([]); setOwners([]); setHorses([]); setShows([]);
       setChampionships([]); setLocations([]); setContacts([]);
-      setManagedUsers(SEED_MANAGED_USERS);
-      setFormResponses([]);
-      try { localStorage.removeItem('gcat:formResponses'); } catch {}
+      setManagedUsers([]); setRoles([]);
       fetchedRef.current = false;
       usersLoadedRef.current = false;
       agentsLoadedRef.current = false;
       contactsLoadedRef.current = false;
+      managedUsersLoadedRef.current = false;
       return;
     }
     if (fetchedRef.current) return;
@@ -165,6 +136,26 @@ export function DataProvider({ children }) {
     } catch (err) {
       console.error('Failed to load agents:', err);
       agentsLoadedRef.current = false;
+    }
+  }, []);
+
+  // ── Lazy: managed users + roles — Users page ──────────────────────────────
+  const loadManagedUsers = useCallback(async () => {
+    if (managedUsersLoadedRef.current) return;
+    managedUsersLoadedRef.current = true;
+    setManagedUsersLoading(true);
+    try {
+      const [usersResult, rolesResult] = await Promise.allSettled([
+        userApi.listUsers({ pageSize: 200 }),
+        userApi.getRoles(),
+      ]);
+      if (usersResult.status === 'fulfilled') setManagedUsers(usersResult.value.items);
+      if (rolesResult.status === 'fulfilled') setRoles(rolesResult.value);
+    } catch (err) {
+      console.error('Failed to load managed users:', err);
+      managedUsersLoadedRef.current = false;
+    } finally {
+      setManagedUsersLoading(false);
     }
   }, []);
 
@@ -315,47 +306,50 @@ export function DataProvider({ children }) {
     }
   }, [showToast]);
 
-  const addFormResponse = useCallback((entry) => {
-    const record = { ...entry, id: `fr_${Date.now()}` };
-    setFormResponses((prev) => {
-      const next = [...prev, record];
-      try { localStorage.setItem('gcat:formResponses', JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
-
   const submitFormResponse = useCallback(async (formId, values, context = null) => {
-    try {
-      await formApi.submitForm(formId, values);
-    } catch (err) {
-      console.error('Form submit (API) failed:', err);
-    }
+    // Throws on failure (invalid/expired token, already submitted) — FormView catches it
+    await formApi.submitForm(formId, values, {
+      email: context?.email || '',
+      name: context?.name || '',
+      token: context?.token || null,
+    });
+
+    // Mark recipient as submitted in the in-memory notifications state so
+    // FormTracking updates immediately without requiring a page refresh
     if (context?.notifId && context?.recipientId) {
-      addFormResponse({
-        formId,
-        notifId: context.notifId,
-        recipientId: context.recipientId,
-        values,
-        submittedAt: new Date().toISOString(),
-      });
+      const now = new Date().toISOString();
+      setNotifications((prev) => prev.map((n) => {
+        if (n.id !== context.notifId) return n;
+        return {
+          ...n,
+          recipients: (n.recipients || []).map((r) =>
+            r.id === context.recipientId
+              ? { ...r, isFormSubmitted: true, formSubmittedAt: now }
+              : r,
+          ),
+        };
+      }));
     }
-  }, [addFormResponse]);
+  }, []);
 
   // ===== MANAGED USERS =====
 
-  const addManagedUser = useCallback((userData) => {
-    const newUser = { ...userData, id: `mu_${Date.now()}` };
+  const addManagedUser = useCallback(async (req) => {
+    const newUser = await userApi.createUser(req);
     setManagedUsers((prev) => [newUser, ...prev]);
     showToast(`${newUser.name} added`, 'fa-user-check');
     return newUser;
   }, [showToast]);
 
-  const updateManagedUser = useCallback((id, patch) => {
-    setManagedUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+  const updateManagedUser = useCallback(async (id, req) => {
+    const updated = await userApi.updateUser(id, req);
+    setManagedUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...updated } : u)));
     showToast('User updated', 'fa-user-pen');
+    return updated;
   }, [showToast]);
 
-  const deleteManagedUser = useCallback((id) => {
+  const deleteManagedUser = useCallback(async (id) => {
+    await userApi.deleteUser(id);
     setManagedUsers((prev) => prev.filter((u) => u.id !== id));
     showToast('User deleted', 'fa-trash');
   }, [showToast]);
@@ -365,7 +359,9 @@ export function DataProvider({ children }) {
     usersLoadedRef.current = false;
     agentsLoadedRef.current = false;
     contactsLoadedRef.current = false;
-    setManagedUsers(SEED_MANAGED_USERS);
+    managedUsersLoadedRef.current = false;
+    setManagedUsers([]);
+    setRoles([]);
     setFormResponses([]);
     try { localStorage.removeItem('gcat:formResponses'); } catch {}
     loadCore();
@@ -379,8 +375,10 @@ export function DataProvider({ children }) {
         loading,
         users, loadUsers,
         agents, loadAgents,
-        managedUsers, addManagedUser, updateManagedUser, deleteManagedUser,
-        formResponses, addFormResponse, submitFormResponse,
+        managedUsers, managedUsersLoading, loadManagedUsers,
+        roles,
+        addManagedUser, updateManagedUser, deleteManagedUser,
+        submitFormResponse,
         managers, owners, horses, shows, championships, locations, contacts,
         contactsLoading, loadContacts,
         toast, showToast,

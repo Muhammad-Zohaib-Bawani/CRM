@@ -2,28 +2,82 @@ import { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import Select from 'react-select';
 import DatePicker from 'react-datepicker';
-import { getFormById } from '../api/forms.js';
+import { getFormById, checkFormToken } from '../api/forms.js';
 import { useData } from '../store/DataContext.jsx';
 import { rsStyles } from '../utils/selectStyles.js';
 
 export default function FormView() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
-  const nid = searchParams.get('nid');
-  const rid = searchParams.get('rid');
+  const token          = searchParams.get('token') || '';
+  const nid            = searchParams.get('nid') || '';
+  const rid            = searchParams.get('rid') || '';
+
   const { submitFormResponse } = useData();
 
-  const [form, setForm] = useState(null);
-  const [notFound, setNotFound] = useState(false);
-  const [values, setValues] = useState({});
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm]               = useState(null);
+  const [tokenState, setTokenState]   = useState('checking'); // 'checking' | 'valid' | 'invalid' | 'used'
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientName, setRecipientName]   = useState('');
+  const [values, setValues]           = useState({});
+  const [submitted, setSubmitted]     = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   useEffect(() => {
-    getFormById(id).then(setForm).catch(() => setNotFound(true));
-  }, [id]);
+    let cancelled = false;
 
-  if (notFound) {
+    async function init() {
+      // 1. Validate token if present
+      if (token) {
+        try {
+          const info = await checkFormToken(token);
+          if (cancelled) return;
+          if (!info.isValid) { setTokenState('invalid'); return; }
+          if (info.isAlreadySubmitted) { setTokenState('used'); return; }
+          setRecipientEmail(info.recipientEmail || '');
+          setRecipientName(info.recipientName || '');
+        } catch {
+          if (!cancelled) setTokenState('invalid');
+          return;
+        }
+      } else {
+        // No token — allow anonymous access (direct form URL)
+        if (!cancelled) setTokenState('valid');
+      }
+
+      // 2. Load form
+      try {
+        const f = await getFormById(id);
+        if (!cancelled) { setForm(f); setTokenState('valid'); }
+      } catch {
+        if (!cancelled) setTokenState('invalid');
+      }
+    }
+
+    init();
+    return () => { cancelled = true; };
+  }, [id, token]);
+
+  if (tokenState === 'checking') {
+    return (
+      <div className="public-form" style={{ textAlign: 'center', paddingTop: 60 }}>
+        <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 32, color: 'var(--brand)' }} />
+      </div>
+    );
+  }
+
+  if (tokenState === 'used') {
+    return (
+      <div className="public-form" style={{ textAlign: 'center' }}>
+        <i className="fa-solid fa-lock" style={{ fontSize: 52, color: 'var(--muted)', marginBottom: 16 }} />
+        <h1>Already Submitted</h1>
+        <p className="lead">You have already submitted this form. Each link can only be used once.</p>
+      </div>
+    );
+  }
+
+  if (tokenState === 'invalid' || !form) {
     return (
       <div className="public-form">
         <h1>Form not found</h1>
@@ -32,28 +86,6 @@ export default function FormView() {
       </div>
     );
   }
-
-  if (!form) {
-    return (
-      <div className="public-form" style={{ textAlign: 'center', paddingTop: 60 }}>
-        <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 32, color: 'var(--brand)' }} />
-      </div>
-    );
-  }
-
-  const handleChange = (fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }));
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    const context = nid && rid ? { notifId: nid, recipientId: rid } : null;
-    try {
-      await submitFormResponse(form.id, values, context);
-    } finally {
-      setSubmitting(false);
-      setSubmitted(true);
-    }
-  };
 
   if (submitted) {
     return (
@@ -66,6 +98,29 @@ export default function FormView() {
     );
   }
 
+  const handleChange = (fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setSubmitError('');
+    const context = {
+      notifId: nid || null,
+      recipientId: rid || null,
+      email: recipientEmail,
+      name: recipientName,
+      token: token || null,
+    };
+    try {
+      await submitFormResponse(form.id, values, context);
+      setSubmitted(true);
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to submit. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const sorted = [...(form.fields || [])].sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
   return (
@@ -76,6 +131,17 @@ export default function FormView() {
       {sorted.map((f) => (
         <FieldRenderer key={f.id} field={f} value={values[f.id]} onChange={(v) => handleChange(f.id, v)} />
       ))}
+
+      {submitError && (
+        <div style={{
+          marginTop: 12, padding: '10px 14px',
+          background: '#fee2e2', color: '#b91c1c',
+          borderRadius: 8, fontSize: 13,
+        }}>
+          <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 8 }} />
+          {submitError}
+        </div>
+      )}
 
       <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <Link to="/" className="btn btn-ghost">Cancel</Link>

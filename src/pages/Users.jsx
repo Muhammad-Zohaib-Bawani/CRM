@@ -1,34 +1,59 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
 import UserModal from '../components/UserModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
-import { COUNTRY_MAP } from '../data/countries.js';
-
-const ROLE_OPTS = toOptions(
-  [
-    { value: 'admin', label: 'Admin' },
-    { value: 'agent', label: 'Agent' },
-    { value: 'user', label: 'General User' },
-  ],
-  'All roles',
-);
 
 const ROLE_META = {
   admin: { label: 'Admin', cls: 'type-admin', icon: 'fa-crown' },
   agent: { label: 'Agent', cls: 'type-agent', icon: 'fa-headset' },
-  user: { label: 'General User', cls: 'type-user', icon: 'fa-user' },
+  user:  { label: 'General User', cls: 'type-user', icon: 'fa-user' },
 };
+
+function SkeletonRow() {
+  return (
+    <tr>
+      <td>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span className="skeleton" style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0 }} />
+          <span className="skeleton" style={{ width: 130, height: 14 }} />
+        </div>
+      </td>
+      <td><span className="skeleton" style={{ width: 170, height: 12 }} /></td>
+      <td><span className="skeleton" style={{ width: 76, height: 24, borderRadius: 20 }} /></td>
+      <td><span className="skeleton" style={{ width: 110, height: 12 }} /></td>
+      <td><span className="skeleton" style={{ width: 56, height: 22, borderRadius: 20 }} /></td>
+      <td style={{ textAlign: 'center' }}>
+        <span className="skeleton" style={{ width: 64, height: 28, borderRadius: 6, margin: '0 auto' }} />
+      </td>
+    </tr>
+  );
+}
 
 export default function Users() {
   useAuth();
-  const { managedUsers, addManagedUser, updateManagedUser, deleteManagedUser } = useData();
+  const {
+    managedUsers, managedUsersLoading, loadManagedUsers,
+    roles,
+    addManagedUser, updateManagedUser, deleteManagedUser,
+    showToast,
+  } = useData();
+
   const [search, setSearch] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [modalMode, setModalMode] = useState(null);
   const [activeUser, setActiveUser] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => { loadManagedUsers(); }, [loadManagedUsers]);
+
+  const roleOpts = useMemo(() => {
+    const base = roles.map((r) => ({ value: r.code, label: r.name }));
+    return toOptions(base, 'All roles');
+  }, [roles]);
 
   const filtered = useMemo(() => {
     return managedUsers.filter((u) => {
@@ -38,7 +63,7 @@ export default function Users() {
         if (
           !u.name.toLowerCase().includes(q) &&
           !u.email.toLowerCase().includes(q) &&
-          !(u.mobile || '').includes(q)
+          !(u.phone || '').toLowerCase().includes(q)
         ) return false;
       }
       return true;
@@ -47,21 +72,46 @@ export default function Users() {
 
   const openCreate = () => { setActiveUser(null); setModalMode('create'); };
   const openEdit = (u) => { setActiveUser(u); setModalMode('edit'); };
-  const closeModal = () => { setActiveUser(null); setModalMode(null); };
+  const closeModal = useCallback(() => { setActiveUser(null); setModalMode(null); }, []);
 
-  const handleSave = (data) => {
-    if (modalMode === 'create') {
-      addManagedUser(data);
-    } else {
-      updateManagedUser(data.id, data);
+  const handleSave = useCallback(async (formData) => {
+    const roleObj = roles.find((r) => r.code === formData.role);
+    const phone = [formData.dialCode, formData.mobile].filter(Boolean).join(' ').trim() || null;
+    const req = {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      phone: phone || undefined,
+      roleId: roleObj?.id,
+    };
+    if (formData.password) req.password = formData.password;
+
+    setSaving(true);
+    try {
+      if (modalMode === 'create') {
+        await addManagedUser(req);
+      } else {
+        await updateManagedUser(activeUser.id, req);
+      }
+      closeModal();
+    } catch (err) {
+      showToast(err.message || 'Failed to save user', 'fa-triangle-exclamation');
+    } finally {
+      setSaving(false);
     }
-    closeModal();
-  };
+  }, [modalMode, activeUser, roles, addManagedUser, updateManagedUser, closeModal, showToast]);
 
-  const handleDelete = () => {
-    deleteManagedUser(deleteConfirm);
-    setDeleteConfirm(null);
-  };
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await deleteManagedUser(deleteConfirm);
+      setDeleteConfirm(null);
+    } catch {
+      // toast shown by context
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteConfirm, deleteManagedUser]);
 
   const deletingUser = managedUsers.find((u) => u.id === deleteConfirm);
 
@@ -72,10 +122,12 @@ export default function Users() {
         <div>
           <h1>User Management</h1>
           <div className="sub">
-            {filtered.length} of {managedUsers.length} user{managedUsers.length === 1 ? '' : 's'}
+            {managedUsersLoading
+              ? 'Loading…'
+              : `${filtered.length} of ${managedUsers.length} user${managedUsers.length === 1 ? '' : 's'}`}
           </div>
         </div>
-        <button className="btn btn-gold" onClick={openCreate}>
+        <button className="btn btn-gold" onClick={openCreate} disabled={managedUsersLoading}>
           <i className="fa-solid fa-user-plus" /> Add User
         </button>
       </div>
@@ -89,23 +141,44 @@ export default function Users() {
             placeholder="Search by name, email, phone…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            disabled={managedUsersLoading}
           />
         </div>
         <div style={{ minWidth: 160 }}>
           <Select
-            options={ROLE_OPTS}
-            value={findOption(ROLE_OPTS, filterRole)}
+            options={roleOpts}
+            value={findOption(roleOpts, filterRole)}
             onChange={(opt) => setFilterRole(opt?.value ?? 'all')}
             placeholder="All roles"
             isClearable={filterRole !== 'all'}
             styles={rsStylesCompact}
             menuPortalTarget={document.body}
+            isDisabled={managedUsersLoading}
           />
         </div>
       </div>
 
-      {/* Empty state */}
-      {filtered.length === 0 ? (
+      {/* Skeleton */}
+      {managedUsersLoading ? (
+        <div className="ticket-table">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+            </tbody>
+          </table>
+        </div>
+      ) : filtered.length === 0 ? (
+        /* Empty state */
         <div className="empty-state">
           <i className="fa-solid fa-users" />
           <h3>No users found</h3>
@@ -121,6 +194,7 @@ export default function Users() {
           )}
         </div>
       ) : (
+        /* Data table */
         <div className="ticket-table">
           <table>
             <thead>
@@ -128,15 +202,14 @@ export default function Users() {
                 <th>User</th>
                 <th>Email</th>
                 <th>Role</th>
-                <th>Country</th>
-                <th>Mobile</th>
+                <th>Phone</th>
+                <th>Status</th>
                 <th style={{ width: 80, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((u) => {
-                const rm = ROLE_META[u.role] || ROLE_META.user;
-                const countryName = COUNTRY_MAP[u.country] || u.country || '—';
+                const rm = ROLE_META[u.role] || { label: u.roleName || u.role, cls: 'type-user', icon: 'fa-user' };
                 return (
                   <tr key={u.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(u)}>
                     {/* User */}
@@ -160,22 +233,29 @@ export default function Users() {
                       </span>
                     </td>
 
-                    {/* Country */}
-                    <td style={{ color: 'var(--muted)', fontSize: 13 }}>{countryName}</td>
-
-                    {/* Mobile */}
+                    {/* Phone */}
                     <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--muted)' }}>
-                      {u.dialCode} {u.mobile}
+                      {u.phone || '—'}
+                    </td>
+
+                    {/* Status */}
+                    <td>
+                      <span
+                        className="type-pill"
+                        style={{
+                          background: u.isActive ? 'var(--success-soft, #dcfce7)' : '#fee2e2',
+                          color: u.isActive ? 'var(--success, #16a34a)' : '#b91c1c',
+                        }}
+                      >
+                        <i className={`fa-solid ${u.isActive ? 'fa-circle-check' : 'fa-circle-xmark'}`} style={{ marginRight: 5 }} />
+                        {u.isActive ? 'Active' : 'Inactive'}
+                      </span>
                     </td>
 
                     {/* Actions */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                        <button
-                          className="user-action-btn"
-                          title="Edit user"
-                          onClick={() => openEdit(u)}
-                        >
+                        <button className="user-action-btn" title="Edit user" onClick={() => openEdit(u)}>
                           <i className="fa-solid fa-pencil" />
                         </button>
                         <button
@@ -197,12 +277,8 @@ export default function Users() {
 
       {/* Delete confirmation modal */}
       {deleteConfirm && (
-        <div className="modal-backdrop" onClick={() => setDeleteConfirm(null)}>
-          <div
-            className="modal"
-            style={{ maxWidth: 420 }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="modal-backdrop" onClick={() => !deleting && setDeleteConfirm(null)}>
+          <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{
@@ -214,7 +290,7 @@ export default function Users() {
                 </div>
                 <h2>Delete User</h2>
               </div>
-              <i className="fa-solid fa-xmark close" onClick={() => setDeleteConfirm(null)} />
+              {!deleting && <i className="fa-solid fa-xmark close" onClick={() => setDeleteConfirm(null)} />}
             </div>
             <div className="modal-body">
               <p style={{ margin: 0, color: 'var(--muted)', lineHeight: 1.6 }}>
@@ -224,11 +300,13 @@ export default function Users() {
               </p>
             </div>
             <div className="modal-foot">
-              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(null)}>
+              <button className="btn btn-ghost" onClick={() => setDeleteConfirm(null)} disabled={deleting}>
                 Cancel
               </button>
-              <button className="btn btn-danger" onClick={handleDelete}>
-                <i className="fa-solid fa-trash" /> Delete
+              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+                {deleting
+                  ? <><i className="fa-solid fa-circle-notch fa-spin" /> Deleting…</>
+                  : <><i className="fa-solid fa-trash" /> Delete</>}
               </button>
             </div>
           </div>
@@ -240,6 +318,8 @@ export default function Users() {
         <UserModal
           mode={modalMode}
           user={activeUser}
+          roles={roles}
+          saving={saving}
           onClose={closeModal}
           onSave={handleSave}
         />

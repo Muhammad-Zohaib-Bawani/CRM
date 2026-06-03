@@ -247,7 +247,7 @@ export default function ImportRecipientsModal({ onImport, onClose, currentlyImpo
                           {c.email}
                         </td>
                         <td>
-                          <span className={`status-pill status-${c.status.toLowerCase()}`}>
+                          <span className={`status-pill status-${c.status}`}>
                             {c.status}
                           </span>
                         </td>

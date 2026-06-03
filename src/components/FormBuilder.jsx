@@ -32,6 +32,7 @@ export default function FormBuilder({ form, onClose }) {
   const [name, setName] = useState(form.name || '');
   const [fields, setFields] = useState(form.fields || []);
   const [fieldModal, setFieldModal] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const addField = (defaultType = 'text') => {
     setFieldModal({
@@ -71,12 +72,19 @@ export default function FormBuilder({ form, onClose }) {
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim()) return alert('Form name is required');
     if (fields.length === 0) return alert('Add at least one field');
     const sorted = [...fields].sort((a, b) => a.sort - b.sort);
-    saveForm({ id: form.id, name: name.trim(), fields: sorted, createdAt: form.createdAt, createdBy: form.createdBy }, user);
-    onClose();
+    setSaving(true);
+    try {
+      await saveForm({ id: form.id, name: name.trim(), fields: sorted, createdAt: form.createdAt, createdBy: form.createdBy }, user);
+      onClose();
+    } catch {
+      // error toast already shown by DataContext
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -90,9 +98,11 @@ export default function FormBuilder({ form, onClose }) {
           <div className="sub">Drag fields from the palette or click to add. Reorder with the arrows.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave}>
-            <i className="fa-solid fa-check" /> {isNew ? 'Save Form' : 'Update Form'}
+          <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+            {saving
+              ? <><i className="fa-solid fa-circle-notch fa-spin" /> Saving…</>
+              : <><i className="fa-solid fa-check" /> {isNew ? 'Save Form' : 'Update Form'}</>}
           </button>
         </div>
       </div>

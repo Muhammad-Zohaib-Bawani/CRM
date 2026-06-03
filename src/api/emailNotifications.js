@@ -10,13 +10,22 @@ function normalizeNotification(n) {
     sentAt: n.sentAt || n.createdAt,
     recipientCount: n.totalRecipients || 0,
     attachments: (n.attachments || []).map((a) => ({ name: a.fileName, url: a.fileUrl })),
-    recipients: (n.recipients || []).map((r) => ({
-      id: r.id,
-      email: r.email,
-      name: r.name,
-      userType: r.recipientType,
-      status: r.status,
-    })),
+    recipients: (n.recipients || []).map((r) => {
+      // Guard against Guid.Empty (all-zeros) — treat it as no token
+      const rawToken = r.submissionToken || r.SubmissionToken || '';
+      const token = rawToken && rawToken !== '00000000-0000-0000-0000-000000000000'
+        ? rawToken : null;
+      return {
+        id: r.id || r.Id,
+        email: r.email || r.Email,
+        name: r.name || r.Name,
+        userType: r.recipientType || r.RecipientType,
+        status: r.status || r.Status,
+        submissionToken: token,
+        isFormSubmitted: r.isFormSubmitted ?? r.IsFormSubmitted ?? false,
+        formSubmittedAt: r.formSubmittedAt ?? r.FormSubmittedAt ?? null,
+      };
+    }),
     createdAt: n.createdAt,
   };
 }

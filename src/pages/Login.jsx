@@ -14,6 +14,7 @@ export default function Login() {
   const [email, setEmail] = useState(null);
   const [password, setPassword] = useState(null);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleRole = (key) => {
     setRole(key);
@@ -25,12 +26,14 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    const result = await login(email, password);
-    if (!result.ok) {
-      setError(result.error);
-      return;
+    setLoading(true);
+    try {
+      const result = await login(email, password);
+      if (!result.ok) { setError(result.error); return; }
+      nav("/");
+    } finally {
+      setLoading(false);
     }
-    nav("/");
   };
 
   return (
@@ -64,6 +67,7 @@ export default function Login() {
                 type="button"
                 className={role === r.key ? "active" : ""}
                 onClick={() => handleRole(r.key)}
+                disabled={loading}
               >
                 <i
                   className={`fa-solid ${r.icon}`}
@@ -82,6 +86,7 @@ export default function Login() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@gcat.app"
               required
+              disabled={loading}
             />
           </div>
 
@@ -93,6 +98,7 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
+              disabled={loading}
             />
           </div>
 
@@ -106,9 +112,13 @@ export default function Login() {
             type="submit"
             className="btn btn-primary"
             style={{ width: "100%", justifyContent: "center", padding: "12px" }}
+            disabled={loading}
           >
-            <i className="fa-solid fa-arrow-right-to-bracket" />
-            Sign in as {ROLES.find((r) => r.key === role).label}
+            {loading ? (
+              <><i className="fa-solid fa-circle-notch fa-spin" /> Signing in…</>
+            ) : (
+              <><i className="fa-solid fa-arrow-right-to-bracket" /> Sign in as {ROLES.find((r) => r.key === role).label}</>
+            )}
           </button>
         </form>
       </div>

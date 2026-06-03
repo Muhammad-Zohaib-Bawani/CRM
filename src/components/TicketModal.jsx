@@ -43,6 +43,8 @@ export default function TicketModal({ mode, ticket, onClose }) {
   );
   const [commentText, setCommentText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [commenting, setCommenting] = useState(false);
 
   const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -74,12 +76,22 @@ export default function TicketModal({ mode, ticket, onClose }) {
   };
 
   const handleStatus = (status) => updateTicketStatus(ticket.id, status);
-  const handleAssign = (opt) => assignTicket(ticket.id, opt?.value || null);
 
-  const handleAddComment = () => {
+  const handleAssign = async (opt) => {
+    setAssigning(true);
+    try { await assignTicket(ticket.id, opt?.value || null); }
+    finally { setAssigning(false); }
+  };
+
+  const handleAddComment = async () => {
     if (!commentText.trim()) return;
-    addComment(ticket.id, { authorId: user.id, text: commentText.trim() });
-    setCommentText('');
+    setCommenting(true);
+    try {
+      await addComment(ticket.id, { authorId: user.id, text: commentText.trim() });
+      setCommentText('');
+    } finally {
+      setCommenting(false);
+    }
   };
 
   const onCommentKey = (e) => {
@@ -243,13 +255,17 @@ export default function TicketModal({ mode, ticket, onClose }) {
 
             {!isCreate && canAssign && (
               <div className="field">
-                <label>Reassign</label>
+                <label>
+                  Reassign
+                  {assigning && <i className="fa-solid fa-circle-notch fa-spin" style={{ marginLeft: 8, fontSize: 11, color: 'var(--muted)' }} />}
+                </label>
                 <Select
                   options={agentOpts}
                   value={agentOpts.find((o) => o.value === (t.assignedTo || '')) || agentOpts[0]}
                   onChange={handleAssign}
                   styles={rsStyles}
                   menuPortalTarget={document.body}
+                  isDisabled={assigning}
                 />
               </div>
             )}
@@ -284,8 +300,15 @@ export default function TicketModal({ mode, ticket, onClose }) {
                       placeholder="Add a comment…"
                       style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', background: '#fafafa' }}
                     />
-                    <button type="button" className="btn btn-gold btn-sm" onClick={handleAddComment}>
-                      <i className="fa-solid fa-paper-plane" /> Post
+                    <button
+                      type="button"
+                      className="btn btn-gold btn-sm"
+                      onClick={handleAddComment}
+                      disabled={commenting || !commentText.trim()}
+                    >
+                      {commenting
+                        ? <><i className="fa-solid fa-circle-notch fa-spin" /> Posting…</>
+                        : <><i className="fa-solid fa-paper-plane" /> Post</>}
                     </button>
                   </div>
                 )}

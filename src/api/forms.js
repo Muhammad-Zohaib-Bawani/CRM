@@ -80,8 +80,15 @@ export async function deleteForm(id) {
   return del(`/forms/${id}`);
 }
 
-export async function submitForm(formId, values) {
+export async function checkFormToken(token) {
+  return get(`/forms/check-token/${token}`);
+}
+
+export async function submitForm(formId, values, { email = '', name = '', token = null } = {}) {
   const payload = {
+    submissionToken: token || null,
+    submittedByEmail: email || null,
+    submittedByName: name || null,
     values: Object.entries(values || {}).map(([formFieldId, value]) => ({
       formFieldId,
       value: Array.isArray(value) ? value.join(',') : String(value ?? ''),
@@ -90,7 +97,7 @@ export async function submitForm(formId, values) {
   return post(`/forms/${formId}/submit`, payload);
 }
 
-export async function getFormResponses(formId, pageNumber = 1, pageSize = 50) {
+export async function getFormResponses(formId, pageNumber = 1, pageSize = 200) {
   const data = await get(`/forms/${formId}/responses?pageNumber=${pageNumber}&pageSize=${pageSize}`);
   const items = data?.items || data || [];
   return Array.isArray(items) ? items : [];

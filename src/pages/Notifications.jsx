@@ -26,6 +26,7 @@ export default function Notifications() {
   const [importOpen, setImportOpen] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
   const [excelOpen, setExcelOpen] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const activeRecipients = imported.filter((c) => !excluded.has(c.id));
 
@@ -84,25 +85,32 @@ export default function Notifications() {
     showToast(`Form "${form.name}" attached`, 'fa-link');
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!subject.trim()) return alert('Subject is required');
     if (!body.trim()) return alert('Email body is required');
     if (activeRecipients.length === 0) return alert('Add at least one recipient via Import');
-    sendNotification(
-      {
-        subject,
-        body,
-        attachments,
-        recipients: activeRecipients.map((c) => ({ id: c.id, name: c.name, email: c.email, userType: c.userType })),
-      },
-      user,
-      activeRecipients.length
-    );
-    setSubject('');
-    setBody('');
-    setAttachments([]);
-    setImported([]);
-    setExcluded(new Set());
+    setSending(true);
+    try {
+      await sendNotification(
+        {
+          subject,
+          body,
+          attachments,
+          recipients: activeRecipients.map((c) => ({ id: c.id, name: c.name, email: c.email, userType: c.userType })),
+        },
+        user,
+        activeRecipients.length
+      );
+      setSubject('');
+      setBody('');
+      setAttachments([]);
+      setImported([]);
+      setExcluded(new Set());
+    } catch {
+      // error toast shown by DataContext
+    } finally {
+      setSending(false);
+    }
   };
 
   if (user.role !== 'admin') {
@@ -191,10 +199,12 @@ export default function Notifications() {
             <button
               className="btn btn-primary"
               onClick={handleSend}
-              disabled={activeRecipients.length === 0}
+              disabled={sending || activeRecipients.length === 0}
               title={activeRecipients.length === 0 ? 'Import recipients first' : ''}
             >
-              <i className="fa-solid fa-paper-plane" /> Send Notification
+              {sending
+                ? <><i className="fa-solid fa-circle-notch fa-spin" /> Sending…</>
+                : <><i className="fa-solid fa-paper-plane" /> Send Notification</>}
             </button>
           </div>
         </div>
