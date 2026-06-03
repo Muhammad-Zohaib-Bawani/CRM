@@ -1,21 +1,30 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../store/DataContext.jsx';
 
+const ROLE_LABELS = { admin: 'Admin', agent: 'Agent', user: 'General User' };
+
 export default function SelectRecipientsModal({ onImport, onClose, currentlyImported = [] }) {
-  const { users } = useData();
+  const { users, managedUsers } = useData();
+
+  // Merge API users + User Management users, deduped by id
+  const allUsers = useMemo(() => {
+    const apiIds = new Set(users.map((u) => u.id));
+    return [...users, ...managedUsers.filter((u) => !apiIds.has(u.id))];
+  }, [users, managedUsers]);
+
   const [selected, setSelected] = useState(() => new Set(currentlyImported.map((c) => c.id)));
   const [search, setSearch] = useState('');
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter(
+    if (!q) return allUsers;
+    return allUsers.filter(
       (u) =>
         u.name.toLowerCase().includes(q) ||
         u.email.toLowerCase().includes(q) ||
-        u.role.toLowerCase().includes(q)
+        (ROLE_LABELS[u.role] || u.role).toLowerCase().includes(q)
     );
-  }, [users, search]);
+  }, [allUsers, search]);
 
   const allSelected = filtered.length > 0 && filtered.every((u) => selected.has(u.id));
 
@@ -35,14 +44,14 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
     });
 
   const handleImport = () => {
-    const picked = users
+    const picked = allUsers
       .filter((u) => selected.has(u.id))
       .map((u) => ({
         id: u.id,
         name: u.name,
         email: u.email,
-        initials: u.initials,
-        userType: u.role.charAt(0).toUpperCase() + u.role.slice(1),
+        initials: u.initials || u.name[0],
+        userType: ROLE_LABELS[u.role] || u.role,
         status: 'Active',
       }));
     onImport(picked);
@@ -115,7 +124,9 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
                         </div>
                       </td>
                       <td>
-                        <span className={`type-pill type-${u.role}`}>{u.role}</span>
+                        <span className={`type-pill type-${u.role}`}>
+                          {ROLE_LABELS[u.role] || u.role}
+                        </span>
                       </td>
                       <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--muted)' }}>
                         {u.email}
@@ -130,7 +141,7 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
 
         <div className="modal-foot">
           <span style={{ marginRight: 'auto', color: 'var(--muted)', fontSize: 13 }}>
-            <strong style={{ color: 'var(--ink)' }}>{selected.size}</strong> of {users.length} users selected
+            <strong style={{ color: 'var(--ink)' }}>{selected.size}</strong> of {allUsers.length} users selected
           </span>
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button

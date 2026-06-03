@@ -9,6 +9,40 @@ const DataContext = createContext(null);
 
 const TICKET_TYPES = ['Bug', 'Task'];
 
+function extractFormId(html) {
+  if (!html) return null;
+  const m = html.match(/\/form\/([\w-]+)/);
+  return m ? m[1] : null;
+}
+
+const SEED_MANAGED_USERS = [
+  {
+    id: 'mu1', firstName: 'Sarah', lastName: 'Mitchell', name: 'Sarah Mitchell',
+    email: 'sarah@gcat.app', role: 'admin', country: 'US', dialCode: '+1',
+    mobile: '555 000 0001', initials: 'SM',
+  },
+  {
+    id: 'mu2', firstName: 'James', lastName: 'Carter', name: 'James Carter',
+    email: 'james@gcat.app', role: 'agent', country: 'GB', dialCode: '+44',
+    mobile: '7911 123456', initials: 'JC',
+  },
+  {
+    id: 'mu3', firstName: 'Amira', lastName: 'Hassan', name: 'Amira Hassan',
+    email: 'amira@gcat.app', role: 'agent', country: 'AE', dialCode: '+971',
+    mobile: '50 123 4567', initials: 'AH',
+  },
+  {
+    id: 'mu4', firstName: 'Robert', lastName: 'Klein', name: 'Robert Klein',
+    email: 'robert@gcat.app', role: 'user', country: 'DE', dialCode: '+49',
+    mobile: '155 1234 5678', initials: 'RK',
+  },
+  {
+    id: 'mu5', firstName: 'Priya', lastName: 'Sharma', name: 'Priya Sharma',
+    email: 'priya@gcat.app', role: 'user', country: 'IN', dialCode: '+91',
+    mobile: '98765 43210', initials: 'PS',
+  },
+];
+
 // API calls per page:
 //   /            → tickets, notifications, forms
 //   /tickets     → + users, agents
@@ -28,6 +62,15 @@ export function DataProvider({ children }) {
   // ── Users: lazy — Dashboard/Tickets/Notifications ────────────────────────
   const [users, setUsers] = useState([]);
   const usersLoadedRef = useRef(false);
+
+  // ── Managed users: User Management page (local, no API) ──────────────────
+  const [managedUsers, setManagedUsers] = useState(SEED_MANAGED_USERS);
+
+  // ── Form responses: tracked locally + persisted in localStorage ───────────
+  const [formResponses, setFormResponses] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('gcat:formResponses') || '[]'); }
+    catch { return []; }
+  });
 
   // ── Agents: lazy — Tickets page only ─────────────────────────────────────
   const [agents, setAgents] = useState([]);
@@ -59,6 +102,9 @@ export function DataProvider({ children }) {
       setUsers([]); setAgents([]);
       setManagers([]); setOwners([]); setHorses([]); setShows([]);
       setChampionships([]); setLocations([]); setContacts([]);
+      setManagedUsers(SEED_MANAGED_USERS);
+      setFormResponses([]);
+      try { localStorage.removeItem('gcat:formResponses'); } catch {}
       fetchedRef.current = false;
       usersLoadedRef.current = false;
       agentsLoadedRef.current = false;
@@ -80,9 +126,15 @@ export function DataProvider({ children }) {
         formApi.getForms(1, 100),
       ]);
       const resolve = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallback;
+      const formList = resolve(formData);
+      const formMap = new Map(formList.map((f) => [f.id, f.name]));
+      const enrichedNotifs = resolve(notifData).map((n) => {
+        const fid = extractFormId(n.body);
+        return { ...n, formId: fid, formName: fid ? (formMap.get(fid) || null) : null };
+      });
       setTickets(resolve(ticketData));
-      setNotifications(resolve(notifData));
-      setForms(resolve(formData));
+      setNotifications(enrichedNotifs);
+      setForms(formList);
     } catch (err) {
       console.error('Failed to load core data:', err);
     } finally {
@@ -223,13 +275,16 @@ export function DataProvider({ children }) {
   const sendNotification = useCallback(async (notif, currentUser, recipientCount) => {
     try {
       const record = await notifApi.sendEmailNotification(notif);
-      setNotifications((prev) => [record, ...prev]);
+      const formId = extractFormId(notif.body);
+      const attachedForm = formId ? forms.find((f) => f.id === formId) : null;
+      const enriched = { ...record, formId: formId || null, formName: attachedForm?.name || null };
+      setNotifications((prev) => [enriched, ...prev]);
       showToast(`Notification sent to ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}`, 'fa-paper-plane');
-      return record;
+      return enriched;
     } catch (err) {
       showToast(err.message || 'Failed to send notification', 'fa-triangle-exclamation');
     }
-  }, [showToast]);
+  }, [showToast, forms]);
 
   // ===== FORMS =====
 
@@ -260,20 +315,59 @@ export function DataProvider({ children }) {
     }
   }, [showToast]);
 
-  const submitFormResponse = useCallback(async (formId, values) => {
-    try {
-      return await formApi.submitForm(formId, values);
-    } catch (err) {
-      console.error('Form submit failed:', err);
-      throw err;
-    }
+  const addFormResponse = useCallback((entry) => {
+    const record = { ...entry, id: `fr_${Date.now()}` };
+    setFormResponses((prev) => {
+      const next = [...prev, record];
+      try { localStorage.setItem('gcat:formResponses', JSON.stringify(next)); } catch {}
+      return next;
+    });
   }, []);
+
+  const submitFormResponse = useCallback(async (formId, values, context = null) => {
+    try {
+      await formApi.submitForm(formId, values);
+    } catch (err) {
+      console.error('Form submit (API) failed:', err);
+    }
+    if (context?.notifId && context?.recipientId) {
+      addFormResponse({
+        formId,
+        notifId: context.notifId,
+        recipientId: context.recipientId,
+        values,
+        submittedAt: new Date().toISOString(),
+      });
+    }
+  }, [addFormResponse]);
+
+  // ===== MANAGED USERS =====
+
+  const addManagedUser = useCallback((userData) => {
+    const newUser = { ...userData, id: `mu_${Date.now()}` };
+    setManagedUsers((prev) => [newUser, ...prev]);
+    showToast(`${newUser.name} added`, 'fa-user-check');
+    return newUser;
+  }, [showToast]);
+
+  const updateManagedUser = useCallback((id, patch) => {
+    setManagedUsers((prev) => prev.map((u) => (u.id === id ? { ...u, ...patch } : u)));
+    showToast('User updated', 'fa-user-pen');
+  }, [showToast]);
+
+  const deleteManagedUser = useCallback((id) => {
+    setManagedUsers((prev) => prev.filter((u) => u.id !== id));
+    showToast('User deleted', 'fa-trash');
+  }, [showToast]);
 
   const resetAll = useCallback(() => {
     fetchedRef.current = false;
     usersLoadedRef.current = false;
     agentsLoadedRef.current = false;
     contactsLoadedRef.current = false;
+    setManagedUsers(SEED_MANAGED_USERS);
+    setFormResponses([]);
+    try { localStorage.removeItem('gcat:formResponses'); } catch {}
     loadCore();
   }, []);
 
@@ -285,12 +379,14 @@ export function DataProvider({ children }) {
         loading,
         users, loadUsers,
         agents, loadAgents,
+        managedUsers, addManagedUser, updateManagedUser, deleteManagedUser,
+        formResponses, addFormResponse, submitFormResponse,
         managers, owners, horses, shows, championships, locations, contacts,
         contactsLoading, loadContacts,
         toast, showToast,
         createTicket, updateTicket, updateTicketStatus, assignTicket, addComment,
         sendNotification,
-        saveForm, deleteForm, submitFormResponse,
+        saveForm, deleteForm,
         resetAll,
       }}
     >

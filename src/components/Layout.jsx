@@ -8,6 +8,8 @@ const NAV = {
     { to: '/tickets', label: 'Tickets', icon: 'fa-ticket' },
     { to: '/notifications', label: 'Notifications', icon: 'fa-paper-plane' },
     { to: '/forms', label: 'Dynamic Forms', icon: 'fa-clipboard-list' },
+    { to: '/users', label: 'Users', icon: 'fa-users' },
+    { to: '/form-tracking', label: 'Form Tracking', icon: 'fa-chart-bar' },
   ],
   agent: [
     { to: '/', label: 'Dashboard', icon: 'fa-grip' },

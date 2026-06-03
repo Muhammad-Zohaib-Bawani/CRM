@@ -1,12 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
 import Select from 'react-select';
 import DatePicker from 'react-datepicker';
-import { getFormById, submitForm } from '../api/forms.js';
+import { getFormById } from '../api/forms.js';
+import { useData } from '../store/DataContext.jsx';
 import { rsStyles } from '../utils/selectStyles.js';
 
 export default function FormView() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const nid = searchParams.get('nid');
+  const rid = searchParams.get('rid');
+  const { submitFormResponse } = useData();
+
   const [form, setForm] = useState(null);
   const [notFound, setNotFound] = useState(false);
   const [values, setValues] = useState({});
@@ -40,8 +46,9 @@ export default function FormView() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    const context = nid && rid ? { notifId: nid, recipientId: rid } : null;
     try {
-      await submitForm(form.id, values);
+      await submitFormResponse(form.id, values, context);
     } finally {
       setSubmitting(false);
       setSubmitted(true);
