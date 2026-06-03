@@ -1,47 +1,47 @@
-import { useState, useTransition } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../store/AuthContext.jsx';
+import { useState, useTransition } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../store/AuthContext.jsx";
 
 const ROLES = [
-  { key: 'admin', label: 'Admin', icon: 'fa-crown' },
-  { key: 'agent', label: 'Agent', icon: 'fa-headset' },
+  { key: "admin", label: "Admin", icon: "fa-crown" },
+  { key: "agent", label: "Agent", icon: "fa-headset" },
 ];
-
-const SAMPLE_EMAIL = {
-  admin: 'admin@gcat.app',
-  agent: 'omar@gcat.app',
-};
 
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [role, setRole] = useState('admin');
-  const [email, setEmail] = useState(SAMPLE_EMAIL.admin);
-  const [password, setPassword] = useState('demo');
-  const [error, setError] = useState('');
+  const [role, setRole] = useState("admin");
+  const [email, setEmail] = useState(null);
+  const [password, setPassword] = useState(null);
+  const [error, setError] = useState("");
 
   const handleRole = (key) => {
     setRole(key);
-    setEmail(SAMPLE_EMAIL[key]);
-    setError('');
+    setEmail(null);
+    setPassword(null);
+    setError("");
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
     const result = await login(email, password);
     if (!result.ok) {
       setError(result.error);
       return;
     }
-    nav('/');
+    nav("/");
   };
 
   return (
     <div className="login-page">
       <div className="login-hero">
         <div className="brand-block">
-          <img src="/Images/logo_light.png" alt="GCAT CRM" className="login-logo" />
+          <img
+            src="/Images/logo_light.png"
+            alt="GCAT CRM"
+            className="login-logo"
+          />
           <p className="login-project-name">GCAT CRM</p>
         </div>
         <div className="quote">
@@ -53,17 +53,22 @@ export default function Login() {
       <div className="login-form-wrap">
         <form className="login-form" onSubmit={handleSubmit}>
           <h2>Welcome back</h2>
-          <p className="lead">Sign in to manage tickets, notifications, and forms.</p>
+          <p className="lead">
+            Sign in to manage tickets, notifications, and forms.
+          </p>
 
           <div className="role-tabs">
             {ROLES.map((r) => (
               <button
                 key={r.key}
                 type="button"
-                className={role === r.key ? 'active' : ''}
+                className={role === r.key ? "active" : ""}
                 onClick={() => handleRole(r.key)}
               >
-                <i className={`fa-solid ${r.icon}`} style={{ marginRight: 6 }} />
+                <i
+                  className={`fa-solid ${r.icon}`}
+                  style={{ marginRight: 6 }}
+                />
                 {r.label}
               </button>
             ))}
@@ -92,21 +97,19 @@ export default function Login() {
           </div>
 
           {error && (
-            <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>
+            <div style={{ color: "#b91c1c", fontSize: 13, marginBottom: 12 }}>
               <i className="fa-solid fa-triangle-exclamation" /> {error}
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            style={{ width: "100%", justifyContent: "center", padding: "12px" }}
+          >
             <i className="fa-solid fa-arrow-right-to-bracket" />
             Sign in as {ROLES.find((r) => r.key === role).label}
           </button>
-
-          <div className="demo-creds">
-            <strong>Demo mode:</strong> Any password works. Try these accounts —
-            <br />
-            <code>admin@gcat.app</code> · <code>omar@gcat.app</code>
-          </div>
         </form>
       </div>
     </div>
