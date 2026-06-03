@@ -4,7 +4,7 @@ import { viteSingleFile } from 'vite-plugin-singlefile';
 
 // Builds to a single inlined HTML so the prototype can be opened by double-click.
 export default defineConfig({
-  base: './',
+  base: '/',
   plugins: [react(), viteSingleFile()],
   server: {
     port: 5173,

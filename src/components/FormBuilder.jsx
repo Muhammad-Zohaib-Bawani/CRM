@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import Select from 'react-select';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
+import { rsStyles, toOptions } from '../utils/selectStyles.js';
 
 const FIELD_TYPES = [
   { type: 'text', label: 'Free Text', icon: 'fa-font' },
@@ -17,6 +19,11 @@ const FIELD_TYPES = [
 
 const TYPES_WITH_OPTIONS = ['select', 'checkbox'];
 
+const FIELD_TYPE_OPTS = FIELD_TYPES.map((ft) => ({
+  value: ft.type,
+  label: ft.label,
+}));
+
 export default function FormBuilder({ form, onClose }) {
   const { user } = useAuth();
   const { saveForm } = useData();
@@ -24,7 +31,7 @@ export default function FormBuilder({ form, onClose }) {
   const isNew = !form.id;
   const [name, setName] = useState(form.name || '');
   const [fields, setFields] = useState(form.fields || []);
-  const [fieldModal, setFieldModal] = useState(null); // {edit:bool, field, defaultType}
+  const [fieldModal, setFieldModal] = useState(null);
 
   const addField = (defaultType = 'text') => {
     setFieldModal({
@@ -40,9 +47,7 @@ export default function FormBuilder({ form, onClose }) {
     });
   };
 
-  const editField = (f) => {
-    setFieldModal({ edit: true, field: { ...f } });
-  };
+  const editField = (f) => setFieldModal({ edit: true, field: { ...f } });
 
   const saveField = (field) => {
     if (fieldModal.edit) {
@@ -53,9 +58,7 @@ export default function FormBuilder({ form, onClose }) {
     setFieldModal(null);
   };
 
-  const removeField = (id) => {
-    setFields((prev) => prev.filter((f) => f.id !== id));
-  };
+  const removeField = (id) => setFields((prev) => prev.filter((f) => f.id !== id));
 
   const move = (id, dir) => {
     setFields((prev) => {
@@ -98,12 +101,7 @@ export default function FormBuilder({ form, onClose }) {
         <aside className="builder-palette">
           <h3>Field Types</h3>
           {FIELD_TYPES.map((ft) => (
-            <div
-              key={ft.type}
-              className="palette-item"
-              onClick={() => addField(ft.type)}
-              title={`Add ${ft.label}`}
-            >
+            <div key={ft.type} className="palette-item" onClick={() => addField(ft.type)} title={`Add ${ft.label}`}>
               <i className={`fa-solid ${ft.icon}`} />
               {ft.label}
             </div>
@@ -113,12 +111,7 @@ export default function FormBuilder({ form, onClose }) {
         <section className="builder-canvas">
           <div className="field" style={{ marginBottom: 24 }}>
             <label>Form Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Horse Arrival Checklist"
-            />
+            <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Horse Arrival Checklist" />
           </div>
 
           <h3 style={{ fontSize: 11, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', margin: '0 0 12px' }}>
@@ -128,9 +121,7 @@ export default function FormBuilder({ form, onClose }) {
           {fields.length === 0 ? (
             <div className="empty" style={{ padding: '40px 20px' }}>
               <i className="fa-solid fa-clipboard-list" />
-              <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', margin: '0 0 6px', color: 'var(--black)' }}>
-                No fields yet
-              </h3>
+              <h3 style={{ fontFamily: 'Cormorant Garamond, Georgia, serif', margin: '0 0 6px', color: 'var(--black)' }}>No fields yet</h3>
               <p style={{ margin: 0 }}>Click a field type on the left to add it.</p>
             </div>
           ) : (
@@ -138,23 +129,13 @@ export default function FormBuilder({ form, onClose }) {
               <div className="builder-field" key={f.id}>
                 <div className="meta">
                   <strong>{f.name || <em style={{ color: 'var(--muted)' }}>Untitled</em>}</strong>
-                  <small>
-                    {f.type} · sort {f.sort}{f.placeholder && ` · "${f.placeholder}"`}
-                  </small>
+                  <small>{f.type} · sort {f.sort}{f.placeholder && ` · "${f.placeholder}"`}</small>
                 </div>
                 <div className="actions">
-                  <button onClick={() => move(f.id, -1)} disabled={i === 0} title="Move up">
-                    <i className="fa-solid fa-arrow-up" />
-                  </button>
-                  <button onClick={() => move(f.id, 1)} disabled={i === fields.length - 1} title="Move down">
-                    <i className="fa-solid fa-arrow-down" />
-                  </button>
-                  <button onClick={() => editField(f)} title="Edit">
-                    <i className="fa-solid fa-pen" />
-                  </button>
-                  <button className="del" onClick={() => removeField(f.id)} title="Delete">
-                    <i className="fa-solid fa-trash" />
-                  </button>
+                  <button onClick={() => move(f.id, -1)} disabled={i === 0} title="Move up"><i className="fa-solid fa-arrow-up" /></button>
+                  <button onClick={() => move(f.id, 1)} disabled={i === fields.length - 1} title="Move down"><i className="fa-solid fa-arrow-down" /></button>
+                  <button onClick={() => editField(f)} title="Edit"><i className="fa-solid fa-pen" /></button>
+                  <button className="del" onClick={() => removeField(f.id)} title="Delete"><i className="fa-solid fa-trash" /></button>
                 </div>
               </div>
             ))
@@ -166,9 +147,7 @@ export default function FormBuilder({ form, onClose }) {
         </section>
       </div>
 
-      {fieldModal && (
-        <FieldModal initial={fieldModal.field} onSave={saveField} onClose={() => setFieldModal(null)} />
-      )}
+      {fieldModal && <FieldModal initial={fieldModal.field} onSave={saveField} onClose={() => setFieldModal(null)} />}
     </div>
   );
 }
@@ -193,10 +172,7 @@ function FieldModal({ initial, onSave, onClose }) {
     const out = { ...field };
     if (TYPES_WITH_OPTIONS.includes(out.type)) {
       out.options = optionsText.split('\n').map((s) => s.trim()).filter(Boolean);
-      if (out.options.length === 0) {
-        const label = out.type === 'select' ? 'Dropdown' : 'Checkbox group';
-        return alert(`${label} needs at least one option`);
-      }
+      if (out.options.length === 0) return alert(`${out.type === 'select' ? 'Dropdown' : 'Checkbox group'} needs at least one option`);
     } else {
       delete out.options;
     }
@@ -213,77 +189,48 @@ function FieldModal({ initial, onSave, onClose }) {
         <div className="modal-body">
           <div className="field">
             <label>Field Name</label>
-            <input
-              type="text"
-              value={field.name}
-              onChange={(e) => update('name', e.target.value)}
-              placeholder="e.g. Horse Name"
-              required
-            />
+            <input type="text" value={field.name} onChange={(e) => update('name', e.target.value)} placeholder="e.g. Horse Name" required />
           </div>
           <div className="field">
             <label>Placeholder</label>
-            <input
-              type="text"
-              value={field.placeholder}
-              onChange={(e) => update('placeholder', e.target.value)}
-              placeholder="Hint shown in the empty field"
-            />
+            <input type="text" value={field.placeholder} onChange={(e) => update('placeholder', e.target.value)} placeholder="Hint shown in the empty field" />
           </div>
           <div className="field-row">
             <div className="field">
               <label>Field Type</label>
-              <select value={field.type} onChange={(e) => update('type', e.target.value)}>
-                {FIELD_TYPES.map((ft) => (
-                  <option key={ft.type} value={ft.type}>{ft.label}</option>
-                ))}
-              </select>
+              <Select
+                options={FIELD_TYPE_OPTS}
+                value={FIELD_TYPE_OPTS.find((o) => o.value === field.type) || null}
+                onChange={(opt) => update('type', opt?.value || 'text')}
+                styles={rsStyles}
+                menuPortalTarget={document.body}
+                isSearchable={false}
+              />
             </div>
             <div className="field">
               <label>Sort Number</label>
-              <input
-                type="number"
-                value={field.sort}
-                onChange={(e) => update('sort', Number(e.target.value) || 1)}
-                min={1}
-              />
+              <input type="number" value={field.sort} onChange={(e) => update('sort', Number(e.target.value) || 1)} min={1} />
             </div>
           </div>
           {TYPES_WITH_OPTIONS.includes(field.type) && (
             <div className="field">
-              <label>
-                {field.type === 'select' ? 'Dropdown options' : 'Checkbox options'} (one per line)
-              </label>
-              <textarea
-                value={optionsText}
-                onChange={(e) => setOptionsText(e.target.value)}
-                placeholder="Option A&#10;Option B&#10;Option C"
-                rows={4}
-              />
+              <label>{field.type === 'select' ? 'Dropdown options' : 'Checkbox options'} (one per line)</label>
+              <textarea value={optionsText} onChange={(e) => setOptionsText(e.target.value)} placeholder="Option A&#10;Option B&#10;Option C" rows={4} />
               <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 4, display: 'block' }}>
-                {field.type === 'select'
-                  ? 'Users will pick exactly one option from the dropdown.'
-                  : 'Users will be able to tick any combination of these checkboxes.'}
+                {field.type === 'select' ? 'Users will pick exactly one option from the dropdown.' : 'Users will be able to tick any combination of these checkboxes.'}
               </small>
             </div>
           )}
           {field.type === 'other' && (
             <div className="field">
               <label>Custom Type Name</label>
-              <input
-                type="text"
-                value={field.customType || ''}
-                onChange={(e) => update('customType', e.target.value)}
-                placeholder="e.g. Signature, File Upload, Rating…"
-              />
+              <input type="text" value={field.customType || ''} onChange={(e) => update('customType', e.target.value)} placeholder="e.g. Signature, File Upload, Rating…" />
             </div>
           )}
         </div>
         <div className="modal-foot">
           <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn btn-primary">
-            <i className="fa-solid fa-check" /> Save Field
-          </button>
+          <button type="submit" className="btn btn-primary"><i className="fa-solid fa-check" /> Save Field</button>
         </div>
       </form>
     </div>

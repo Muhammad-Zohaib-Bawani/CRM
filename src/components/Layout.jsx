@@ -21,8 +21,8 @@ export default function Layout() {
   const nav = useNavigate();
   const items = NAV[user.role] || [];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     nav('/login');
   };
 
