@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5121/api/v1';
+const BASE = import.meta.env.API_URL || 'http://localhost:5121/api/v1';
 
 const TOKEN_KEY = 'gcat:token';
 const REFRESH_KEY = 'gcat:refresh_token';
