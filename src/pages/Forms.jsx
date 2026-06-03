@@ -23,7 +23,7 @@ export default function Forms() {
   }
 
   const copyLink = (form) => {
-    const url = `${window.location.origin}${window.location.pathname}#/form/${form.id}`;
+    const url = `${window.location.origin}/form/${form.id}`;
     try {
       navigator.clipboard.writeText(url);
       showToast('Form link copied to clipboard', 'fa-link');
@@ -130,7 +130,7 @@ export default function Forms() {
                   </button>
                   <a
                     className="btn btn-ghost btn-sm"
-                    href={`${window.location.pathname}#/form/${f.id}`}
+                    href={`/form/${f.id}`}
                     target="_blank"
                     rel="noreferrer"
                   >

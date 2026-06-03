@@ -1,16 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useData } from '../store/DataContext.jsx';
+import Select from 'react-select';
+import DatePicker from 'react-datepicker';
+import { getFormById, submitForm } from '../api/forms.js';
+import { rsStyles } from '../utils/selectStyles.js';
 
 export default function FormView() {
   const { id } = useParams();
-  const { forms, submitFormResponse } = useData();
-  const form = forms.find((f) => f.id === id);
-
+  const [form, setForm] = useState(null);
+  const [notFound, setNotFound] = useState(false);
   const [values, setValues] = useState({});
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  if (!form) {
+  useEffect(() => {
+    getFormById(id).then(setForm).catch(() => setNotFound(true));
+  }, [id]);
+
+  if (notFound) {
     return (
       <div className="public-form">
         <h1>Form not found</h1>
@@ -20,14 +27,25 @@ export default function FormView() {
     );
   }
 
-  const handleChange = (fieldId, value) => {
-    setValues((prev) => ({ ...prev, [fieldId]: value }));
-  };
+  if (!form) {
+    return (
+      <div className="public-form" style={{ textAlign: 'center', paddingTop: 60 }}>
+        <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 32, color: 'var(--brand)' }} />
+      </div>
+    );
+  }
 
-  const handleSubmit = (e) => {
+  const handleChange = (fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    submitFormResponse(form.id, values);
-    setSubmitted(true);
+    setSubmitting(true);
+    try {
+      await submitForm(form.id, values);
+    } finally {
+      setSubmitting(false);
+      setSubmitted(true);
+    }
   };
 
   if (submitted) {
@@ -41,7 +59,7 @@ export default function FormView() {
     );
   }
 
-  const sorted = [...form.fields].sort((a, b) => a.sort - b.sort);
+  const sorted = [...(form.fields || [])].sort((a, b) => (a.sort || 0) - (b.sort || 0));
 
   return (
     <form className="public-form" onSubmit={handleSubmit}>
@@ -49,18 +67,15 @@ export default function FormView() {
       <p className="lead">Please complete the form below.</p>
 
       {sorted.map((f) => (
-        <FieldRenderer
-          key={f.id}
-          field={f}
-          value={values[f.id]}
-          onChange={(v) => handleChange(f.id, v)}
-        />
+        <FieldRenderer key={f.id} field={f} value={values[f.id]} onChange={(v) => handleChange(f.id, v)} />
       ))}
 
       <div style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <Link to="/" className="btn btn-ghost">Cancel</Link>
-        <button type="submit" className="btn btn-primary">
-          <i className="fa-solid fa-paper-plane" /> Submit
+        <button type="submit" className="btn btn-primary" disabled={submitting}>
+          {submitting
+            ? <><i className="fa-solid fa-spinner fa-spin" /> Submitting…</>
+            : <><i className="fa-solid fa-paper-plane" /> Submit</>}
         </button>
       </div>
     </form>
@@ -77,14 +92,10 @@ function FieldRenderer({ field, value, onChange }) {
       return (
         <div className="field">
           <label>{field.name}</label>
-          <input
-            type={field.type}
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-          />
+          <input type={field.type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
         </div>
       );
+
     case 'textarea':
       return (
         <div className="field">
@@ -92,26 +103,56 @@ function FieldRenderer({ field, value, onChange }) {
           <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
         </div>
       );
+
     case 'date':
+      return (
+        <div className="field">
+          <label>{field.name}</label>
+          <DatePicker
+            selected={value ? new Date(value) : null}
+            onChange={(d) => onChange(d ? d.toISOString().split('T')[0] : '')}
+            dateFormat="dd MMM yyyy"
+            placeholderText={placeholder || 'Select a date'}
+            isClearable
+          />
+        </div>
+      );
+
     case 'time':
       return (
         <div className="field">
           <label>{field.name}</label>
-          <input type={field.type} value={value || ''} onChange={(e) => onChange(e.target.value)} />
+          <DatePicker
+            selected={value ? new Date(`2000-01-01T${value}`) : null}
+            onChange={(d) => onChange(d ? d.toTimeString().slice(0, 5) : '')}
+            showTimeSelect
+            showTimeSelectOnly
+            timeIntervals={15}
+            timeCaption="Time"
+            dateFormat="HH:mm"
+            placeholderText={placeholder || 'Select a time'}
+            isClearable
+          />
         </div>
       );
-    case 'select':
+
+    case 'select': {
+      const opts = (field.options || []).map((o) => ({ value: o, label: o }));
       return (
         <div className="field">
           <label>{field.name}</label>
-          <select value={value || ''} onChange={(e) => onChange(e.target.value)}>
-            <option value="">— Select —</option>
-            {(field.options || []).map((opt) => (
-              <option key={opt}>{opt}</option>
-            ))}
-          </select>
+          <Select
+            options={opts}
+            value={opts.find((o) => o.value === value) || null}
+            onChange={(opt) => onChange(opt?.value || '')}
+            placeholder="— Select —"
+            isClearable
+            styles={rsStyles}
+          />
         </div>
       );
+    }
+
     case 'toggle':
       return (
         <div className="field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -122,24 +163,18 @@ function FieldRenderer({ field, value, onChange }) {
           </label>
         </div>
       );
+
     case 'checkbox': {
       const selected = Array.isArray(value) ? value : [];
-      const options = field.options && field.options.length > 0
-        ? field.options
-        : ['Yes'];
-      const toggle = (opt) =>
-        onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt]);
+      const options = field.options?.length ? field.options : ['Yes'];
+      const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt]);
       return (
         <div className="field">
           <label>{field.name}</label>
           <div className="check-group">
             {options.map((opt) => (
               <label key={opt}>
-                <input
-                  type="checkbox"
-                  checked={selected.includes(opt)}
-                  onChange={() => toggle(opt)}
-                />
+                <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
                 <span>{opt}</span>
               </label>
             ))}
@@ -147,22 +182,13 @@ function FieldRenderer({ field, value, onChange }) {
         </div>
       );
     }
-    case 'other':
+
+    default:
       return (
         <div className="field">
-          <label>
-            {field.name}
-            {field.customType && <span style={{ color: 'var(--gold-dark)', marginLeft: 6 }}>({field.customType})</span>}
-          </label>
-          <input
-            type="text"
-            value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder || `Enter ${field.customType || 'value'}`}
-          />
+          <label>{field.name}</label>
+          <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
         </div>
       );
-    default:
-      return null;
   }
 }

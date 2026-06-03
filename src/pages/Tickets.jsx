@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
+import Select from 'react-select';
+import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import TicketModal from '../components/TicketModal.jsx';
+import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
 
 const STATUSES = [
   { key: 'open', label: 'Open' },
@@ -9,25 +12,37 @@ const STATUSES = [
   { key: 'completed', label: 'Completed' },
 ];
 
+const STATUS_OPTS = toOptions(STATUSES.map((s) => ({ value: s.key, label: s.label })), 'All statuses');
+const PRIORITY_OPTS = toOptions(['Low', 'Medium', 'High', 'Urgent'], 'All priorities');
+
 export default function Tickets() {
   const { user } = useAuth();
-  const { tickets, users, ticketTypes, updateTicketStatus } = useData();
+  const { tickets, users, agents, ticketTypes, updateTicketStatus, loadUsers, loadAgents } = useData();
 
-  const [view, setView] = useState('kanban'); // kanban | list | card
+  useEffect(() => { loadUsers(); loadAgents(); }, [loadUsers, loadAgents]);
+
+  const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [showOnlyMine, setShowOnlyMine] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
 
   const [modalMode, setModalMode] = useState(null);
   const [activeTicket, setActiveTicket] = useState(null);
 
   const canCreate = user.role === 'admin';
-  const agents = users.filter((u) => u.role === 'agent');
+  // agents comes directly from DataContext (fetched from /api/v1/users/agents)
+
+  const typeOpts = toOptions(ticketTypes, 'All types');
+  const agentOpts = [
+    { value: 'all', label: 'All agents' },
+    { value: '', label: 'Unassigned' },
+    ...agents.map((a) => ({ value: a.id, label: a.name })),
+  ];
 
   const scoped = useMemo(() => {
     if (user.role === 'admin') return tickets;
@@ -35,24 +50,25 @@ export default function Tickets() {
   }, [tickets, user]);
 
   const filtered = useMemo(() => {
-    const fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00').getTime() : null;
-    const toTs = dateTo ? new Date(dateTo + 'T23:59:59').getTime() : null;
     return scoped.filter((t) => {
       if (filterStatus !== 'all' && t.status !== filterStatus) return false;
       if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
       if (filterType !== 'all' && t.type !== filterType) return false;
       if (filterAssignee !== 'all' && t.assignedTo !== filterAssignee) return false;
       if (showOnlyMine && t.assignedTo !== user.id) return false;
-      if (fromTs || toTs) {
+      if (dateFrom) {
         const created = new Date(t.createdAt).getTime();
-        if (fromTs && created < fromTs) return false;
-        if (toTs && created > toTs) return false;
+        if (created < dateFrom.setHours(0, 0, 0, 0)) return false;
+      }
+      if (dateTo) {
+        const created = new Date(t.createdAt).getTime();
+        if (created > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
       }
       if (search.trim()) {
         const q = search.toLowerCase();
         if (
           !t.title.toLowerCase().includes(q) &&
-          !t.id.toLowerCase().includes(q) &&
+          !(t.ticketNumber || t.id).toLowerCase().includes(q) &&
           !(t.description || '').toLowerCase().includes(q)
         )
           return false;
@@ -61,23 +77,10 @@ export default function Tickets() {
     });
   }, [scoped, filterStatus, filterPriority, filterType, filterAssignee, showOnlyMine, search, dateFrom, dateTo, user.id]);
 
-  const openCreate = () => {
-    setActiveTicket(null);
-    setModalMode('create');
-  };
-  const openView = (t) => {
-    setActiveTicket(t);
-    setModalMode('view');
-  };
-  const closeModal = () => {
-    setActiveTicket(null);
-    setModalMode(null);
-  };
-
-  const clearDates = () => {
-    setDateFrom('');
-    setDateTo('');
-  };
+  const openCreate = () => { setActiveTicket(null); setModalMode('create'); };
+  const openView = (t) => { setActiveTicket(t); setModalMode('view'); };
+  const closeModal = () => { setActiveTicket(null); setModalMode(null); };
+  const clearDates = () => { setDateFrom(null); setDateTo(null); };
 
   // Drag-and-drop
   const [draggingId, setDraggingId] = useState(null);
@@ -88,26 +91,14 @@ export default function Tickets() {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', id);
   };
-  const onDragEnd = () => {
-    setDraggingId(null);
-    setDragOverCol(null);
-  };
-  const onDragOver = (e, status) => {
-    e.preventDefault();
-    setDragOverCol(status);
-  };
+  const onDragEnd = () => { setDraggingId(null); setDragOverCol(null); };
+  const onDragOver = (e, status) => { e.preventDefault(); setDragOverCol(status); };
   const onDrop = (e, status) => {
     e.preventDefault();
     const id = e.dataTransfer.getData('text/plain');
     const t = tickets.find((x) => x.id === id);
-    if (!t || t.status === status) {
-      setDragOverCol(null);
-      return;
-    }
-    if (user.role === 'agent' && t.assignedTo !== user.id) {
-      setDragOverCol(null);
-      return;
-    }
+    if (!t || t.status === status) { setDragOverCol(null); return; }
+    if (user.role === 'agent' && t.assignedTo !== user.id) { setDragOverCol(null); return; }
     updateTicketStatus(id, status);
     setDragOverCol(null);
   };
@@ -157,57 +148,86 @@ export default function Tickets() {
           />
         </div>
 
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="all">All statuses</option>
-          {STATUSES.map((s) => (
-            <option key={s.key} value={s.key}>{s.label}</option>
-          ))}
-        </select>
+        <div style={{ minWidth: 148 }}>
+          <Select
+            options={STATUS_OPTS}
+            value={findOption(STATUS_OPTS, filterStatus)}
+            onChange={(opt) => setFilterStatus(opt?.value ?? 'all')}
+            placeholder="All statuses"
+            isClearable={filterStatus !== 'all'}
+            styles={rsStylesCompact}
+            menuPortalTarget={document.body}
+          />
+        </div>
 
-        <select value={filterPriority} onChange={(e) => setFilterPriority(e.target.value)}>
-          <option value="all">All priorities</option>
-          <option>Low</option>
-          <option>Medium</option>
-          <option>High</option>
-          <option>Urgent</option>
-        </select>
+        <div style={{ minWidth: 148 }}>
+          <Select
+            options={PRIORITY_OPTS}
+            value={findOption(PRIORITY_OPTS, filterPriority)}
+            onChange={(opt) => setFilterPriority(opt?.value ?? 'all')}
+            placeholder="All priorities"
+            isClearable={filterPriority !== 'all'}
+            styles={rsStylesCompact}
+            menuPortalTarget={document.body}
+          />
+        </div>
 
-        <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-          <option value="all">All types</option>
-          {ticketTypes.map((t) => (
-            <option key={t}>{t}</option>
-          ))}
-        </select>
+        <div style={{ minWidth: 130 }}>
+          <Select
+            options={typeOpts}
+            value={findOption(typeOpts, filterType)}
+            onChange={(opt) => setFilterType(opt?.value ?? 'all')}
+            placeholder="All types"
+            isClearable={filterType !== 'all'}
+            styles={rsStylesCompact}
+            menuPortalTarget={document.body}
+          />
+        </div>
 
         {user.role === 'admin' && (
-          <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)}>
-            <option value="all">All agents</option>
-            <option value="">Unassigned</option>
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>{a.name}</option>
-            ))}
-          </select>
+          <div style={{ minWidth: 148 }}>
+            <Select
+              options={agentOpts}
+              value={agentOpts.find((o) => o.value === filterAssignee) || null}
+              onChange={(opt) => setFilterAssignee(opt?.value ?? 'all')}
+              placeholder="All agents"
+              isClearable={filterAssignee !== 'all'}
+              styles={rsStylesCompact}
+              menuPortalTarget={document.body}
+            />
+          </div>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 4px', borderLeft: '1px solid var(--line)' }}>
           <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Created
           </span>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', background: '#fafafa', fontSize: 12 }}
-            title="From date"
-          />
+          <div className="dp-compact" style={{ width: 130 }}>
+            <DatePicker
+              selected={dateFrom}
+              onChange={setDateFrom}
+              selectsStart
+              startDate={dateFrom}
+              endDate={dateTo}
+              dateFormat="dd MMM yyyy"
+              placeholderText="From"
+              isClearable
+            />
+          </div>
           <span style={{ color: 'var(--muted)', fontSize: 12 }}>→</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 'var(--radius-sm)', background: '#fafafa', fontSize: 12 }}
-            title="To date"
-          />
+          <div className="dp-compact" style={{ width: 130 }}>
+            <DatePicker
+              selected={dateTo}
+              onChange={setDateTo}
+              selectsEnd
+              startDate={dateFrom}
+              endDate={dateTo}
+              minDate={dateFrom}
+              dateFormat="dd MMM yyyy"
+              placeholderText="To"
+              isClearable
+            />
+          </div>
           {(dateFrom || dateTo) && (
             <button
               type="button"
@@ -221,11 +241,7 @@ export default function Tickets() {
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)' }}>
-          <input
-            type="checkbox"
-            checked={showOnlyMine}
-            onChange={(e) => setShowOnlyMine(e.target.checked)}
-          />
+          <input type="checkbox" checked={showOnlyMine} onChange={(e) => setShowOnlyMine(e.target.checked)} />
           Only mine
         </label>
       </div>
@@ -241,14 +257,8 @@ export default function Tickets() {
           <table>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Type</th>
-                <th>Priority</th>
-                <th>Assignee</th>
-                <th>Due</th>
-                <th>Status</th>
-                <th>Created</th>
+                <th>ID</th><th>Title</th><th>Type</th><th>Priority</th>
+                <th>Assignee</th><th>Due</th><th>Status</th><th>Created</th>
               </tr>
             </thead>
             <tbody>
@@ -257,7 +267,7 @@ export default function Tickets() {
                 const overdue = isOverdue(t);
                 return (
                   <tr key={t.id} onClick={() => openView(t)} style={{ cursor: 'pointer' }}>
-                    <td className="ticket-id">{t.id}</td>
+                    <td className="ticket-id">{t.ticketNumber || t.id}</td>
                     <td>
                       <div className="ticket-title">{t.title}</div>
                       {(t.attachments || []).length > 0 && (
@@ -266,11 +276,7 @@ export default function Tickets() {
                         </div>
                       )}
                     </td>
-                    <td>
-                      <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>
-                        {t.type}
-                      </span>
-                    </td>
+                    <td><span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span></td>
                     <td><span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span></td>
                     <td>{a ? a.name : <em style={{ color: 'var(--muted)' }}>Unassigned</em>}</td>
                     <td style={{ color: overdue ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: overdue ? 600 : 400 }}>
@@ -293,24 +299,16 @@ export default function Tickets() {
             return (
               <div key={t.id} className="ticket-card" onClick={() => openView(t)}>
                 <div className="head">
-                  <span className="tid">{t.id}</span>
+                  <span className="tid">{t.ticketNumber || t.id}</span>
                   <span className={`badge badge-${t.status}`}>{statusLabel(t.status)}</span>
                 </div>
                 <h3>{t.title}</h3>
                 <p className="desc">{t.description || 'No description'}</p>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                   <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                  <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>
-                    {t.type}
-                  </span>
+                  <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span>
                   {t.dueDate && (
-                    <span
-                      className="badge"
-                      style={{
-                        background: overdue ? '#fee2e2' : '#f3f4f6',
-                        color: overdue ? '#b91c1c' : 'var(--muted)',
-                      }}
-                    >
+                    <span className="badge" style={{ background: overdue ? '#fee2e2' : '#f3f4f6', color: overdue ? '#b91c1c' : 'var(--muted)' }}>
                       <i className="fa-solid fa-calendar" /> {fmtDate(t.dueDate)}
                     </span>
                   )}
@@ -322,13 +320,7 @@ export default function Tickets() {
                 </div>
                 <div className="meta">
                   <span className="assignee">
-                    {a ? (
-                      <>
-                        <span className="mini-avatar">{a.initials}</span> {a.name}
-                      </>
-                    ) : (
-                      <em>Unassigned</em>
-                    )}
+                    {a ? <><span className="mini-avatar">{a.initials}</span> {a.name}</> : <em>Unassigned</em>}
                   </span>
                   <span>{fmtDate(t.createdAt)}</span>
                 </div>
@@ -348,10 +340,7 @@ export default function Tickets() {
                 onDragLeave={() => setDragOverCol(null)}
                 onDrop={(e) => onDrop(e, col.key)}
               >
-                <h3>
-                  {col.label}
-                  <span className="count">{items.length}</span>
-                </h3>
+                <h3>{col.label}<span className="count">{items.length}</span></h3>
                 {items.length === 0 && (
                   <div style={{ textAlign: 'center', padding: 24, color: 'var(--muted)', fontSize: 12 }}>
                     Drop tickets here
@@ -371,26 +360,15 @@ export default function Tickets() {
                       onClick={() => openView(t)}
                       style={{ cursor: canDrag ? 'grab' : 'pointer' }}
                     >
-                      <div className="tid">{t.id}</div>
+                      <div className="tid">{t.ticketNumber || t.id}</div>
                       <div className="title">{t.title}</div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                        <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>
-                          {t.type}
-                        </span>
+                        <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span>
                       </div>
                       <div className="foot">
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {a ? (
-                            <>
-                              <span className="mini-avatar" style={{ display: 'inline-grid', verticalAlign: 'middle', marginRight: 4 }}>
-                                {a.initials}
-                              </span>
-                              {a.name.split(' ')[0]}
-                            </>
-                          ) : (
-                            'Unassigned'
-                          )}
+                          {a ? <><span className="mini-avatar" style={{ display: 'inline-grid', verticalAlign: 'middle', marginRight: 4 }}>{a.initials}</span>{a.name.split(' ')[0]}</> : 'Unassigned'}
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
                           {t.dueDate && (
@@ -398,7 +376,7 @@ export default function Tickets() {
                               <i className="fa-solid fa-calendar" /> {fmtDate(t.dueDate)}
                             </span>
                           )}
-                          {t.comments.length > 0 && (
+                          {(t.comments || []).length > 0 && (
                             <span><i className="fa-regular fa-comment" /> {t.comments.length}</span>
                           )}
                         </span>
@@ -412,9 +390,7 @@ export default function Tickets() {
         </div>
       )}
 
-      {modalMode && (
-        <TicketModal mode={modalMode} ticket={activeTicket} onClose={closeModal} />
-      )}
+      {modalMode && <TicketModal mode={modalMode} ticket={activeTicket} onClose={closeModal} />}
     </div>
   );
 }

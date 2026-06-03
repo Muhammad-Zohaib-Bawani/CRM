@@ -9,8 +9,10 @@ import ImportFromExcelModal from '../components/ImportFromExcelModal.jsx';
 
 export default function Notifications() {
   const { user } = useAuth();
-  const { forms, notifications, sendNotification, showToast } = useData();
+  const { forms, notifications, sendNotification, showToast, loadUsers, loadContacts, contactsLoading } = useData();
   const navigate = useNavigate();
+
+  useEffect(() => { loadUsers(); loadContacts(); }, [loadUsers, loadContacts]);
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -70,7 +72,7 @@ export default function Notifications() {
   };
 
   const insertFormLink = (form) => {
-    const url = `${window.location.origin}${window.location.pathname}#/form/${form.id}`;
+    const url = `${window.location.origin}/form/${form.id}`;
     const linkHtml =
       `<p><a href="${url}" target="_blank" style="display:inline-block;` +
       `padding:8px 14px;background:#eef2ff;color:#4f46e5;border-radius:6px;` +

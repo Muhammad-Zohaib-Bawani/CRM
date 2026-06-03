@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext.jsx';
 
@@ -26,9 +26,10 @@ export default function Login() {
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    const result = login(role, email);
+    setError('');
+    const result = await login(email, password);
     if (!result.ok) {
       setError(result.error);
       return;
