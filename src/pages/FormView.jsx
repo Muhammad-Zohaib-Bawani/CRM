@@ -93,7 +93,7 @@ export default function FormView() {
         <i className="fa-solid fa-circle-check" style={{ fontSize: 56, color: 'var(--status-completed)', marginBottom: 16 }} />
         <h1>Thank you</h1>
         <p className="lead">Your response to <strong>{form.name}</strong> has been received.</p>
-        <Link className="btn btn-primary" to="/"><i className="fa-solid fa-house" /> Return</Link>
+        {/* <Link className="btn btn-primary" to="/"><i className="fa-solid fa-house" /> Return</Link> */}
       </div>
     );
   }
