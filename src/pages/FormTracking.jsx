@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   getFormCampaigns,
-  getFormResponses,
+  getFormCampaignResponses,
   exportFormResponsesByCampaign,
 } from "../services/forms.js";
 
@@ -172,31 +172,31 @@ export default function FormTracking() {
   const [allResponsesModal, setAllResponsesModal] = useState(null); // { notif, form }
   const [copiedId, setCopiedId] = useState(null);
 
-  // ── API responses per formId ──────────────────────────────────────────────
-  const [apiResponses, setApiResponses] = useState({}); // { formId: [...] }
+  // ── API responses per campaignId ─────────────────────────────────────────
+  const [apiResponses, setApiResponses] = useState({}); // { campaignId: [...] }
   const [loadingForms, setLoadingForms] = useState(new Set());
   const loadedRef = useRef(new Set());
 
   const loadApiResponses = useCallback(
-    async (formId, { force = false } = {}) => {
-      if (!formId) return;
-      if (!force && loadedRef.current.has(formId)) return;
-      loadedRef.current.add(formId);
+    async (campaignId, { force = false } = {}) => {
+      if (!campaignId) return;
+      if (!force && loadedRef.current.has(campaignId)) return;
+      loadedRef.current.add(campaignId);
       setLoadingForms((prev) => {
         const s = new Set(prev);
-        s.add(formId);
+        s.add(campaignId);
         return s;
       });
       try {
-        const data = await getFormResponses(formId);
-        setApiResponses((prev) => ({ ...prev, [formId]: data }));
+        const data = await getFormCampaignResponses(campaignId);
+        setApiResponses((prev) => ({ ...prev, [campaignId]: data }));
       } catch (err) {
         console.error("Failed to load form responses:", err);
-        loadedRef.current.delete(formId);
+        loadedRef.current.delete(campaignId);
       } finally {
         setLoadingForms((prev) => {
           const s = new Set(prev);
-          s.delete(formId);
+          s.delete(campaignId);
           return s;
         });
       }
@@ -209,18 +209,18 @@ export default function FormTracking() {
   useEffect(() => {
     if (!expandedId) return;
     const notif = campaigns.find((n) => n.id === expandedId);
-    if (!notif?.formId) return;
+    if (!notif?.formCampaignId) return;
     const hasSubmitted = (notif.recipients || []).some(
       (r) => r.isFormSubmitted,
     );
-    loadApiResponses(notif.formId, { force: hasSubmitted });
+    loadApiResponses(notif.formCampaignId, { force: hasSubmitted });
   }, [expandedId, campaigns, loadApiResponses]);
 
   // ── Response lookup helpers ───────────────────────────────────────────────
 
   const getApiResponseFor = useCallback(
     (notif, recipient) => {
-      const list = apiResponses[notif.formId] || [];
+      const list = apiResponses[notif.formCampaignId] || [];
       const byId = list.find((r) => r.recipientId === recipient.id);
       if (byId) return byId;
       if (!recipient.email) return null;
@@ -332,7 +332,7 @@ export default function FormTracking() {
           {campaigns.map((notif) => {
             const { total, completed, pending } = statsFor(notif);
             const isOpen = expandedId === notif.id;
-            const isLoadingResponses = loadingForms.has(notif.formId);
+            const isLoadingResponses = loadingForms.has(notif.formCampaignId);
 
             return (
               <div key={notif.id} className="ft-card">
@@ -684,8 +684,18 @@ function AllResponsesModal({ notif, form, onClose }) {
       return;
     }
     let cancelled = false;
-
-      
+    async function load() {
+      setLoading(true);
+      try {
+        const data = await getFormCampaignResponses(notif.formCampaignId);
+        if (!cancelled) setResponses(data);
+      } catch (err) {
+        console.error("Failed to load campaign responses:", err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
     return () => {
       cancelled = true;
     };
@@ -733,7 +743,7 @@ function AllResponsesModal({ notif, form, onClose }) {
       <div className="modal wide" style={{ maxWidth: 900, width: "95vw" }}>
         <div className="modal-head">
           <div>
-            <h2>All Responses</h2>
+            <h2>Responses</h2>
             <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3 }}>
               <i
                 className="fa-solid fa-clipboard-list"

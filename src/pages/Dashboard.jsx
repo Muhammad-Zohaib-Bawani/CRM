@@ -110,24 +110,26 @@ export default function Dashboard() {
         <DashboardSkeleton role={user.role} />
       ) : (
         <>
-          {/* Stat cards */}
-          <div className="stats-grid">
+          {/* Row 1 — ticket stats (always 5) */}
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
             <StatCard label="Total Tickets" value={counts.total}     icon="fa-ticket" />
             <StatCard label="Open"          value={counts.open}      icon="fa-folder-open"          variant="open" />
             <StatCard label="In Progress"   value={counts.progress}  icon="fa-spinner"              variant="progress" />
             <StatCard label="Completed"     value={counts.completed} icon="fa-circle-check"         variant="completed" />
             <StatCard label="Overdue"       value={counts.overdue}   icon="fa-triangle-exclamation" variant="overdue" />
-            {isAdmin && (
-              <>
-                <StatCard label="Notifications Sent (Daily)" value={counts.notificationsToday} icon="fa-paper-plane" />
-                <StatCard label="Active Forms"               value={counts.activeForms}        icon="fa-clipboard-list" />
-                <StatCard label="Total Agents"               value={counts.totalAgents}        icon="fa-headset" />
-                <ActionCard label="Add Ticket"        icon="fa-plus"           onClick={() => setTicketModalOpen(true)} />
-                <ActionCard label="Send Notification" icon="fa-paper-plane"    to="/notifications" />
-                <ActionCard label="Build Form"        icon="fa-clipboard-list" to="/forms" />
-              </>
-            )}
           </div>
+
+          {/* Row 2 — admin stats + quick actions */}
+          {isAdmin && (
+            <div className="stats-grid">
+              <StatCard label="Notifications Sent (Daily)" value={counts.notificationsToday} icon="fa-paper-plane" />
+              <StatCard label="Active Forms"               value={counts.activeForms}        icon="fa-clipboard-list" />
+              <StatCard label="Total Agents"               value={counts.totalAgents}        icon="fa-headset" />
+              <ActionCard label="Add Ticket"        icon="fa-plus"           onClick={() => setTicketModalOpen(true)} />
+              <ActionCard label="Send Notification" icon="fa-paper-plane"    to="/notifications" />
+              <ActionCard label="Build Form"        icon="fa-clipboard-list" to="/forms" />
+            </div>
+          )}
 
           {/* Split section */}
           <div className="dashboard-split">
@@ -207,9 +209,9 @@ function Sk({ w = '100%', h = 14, r = 6, mb = 0 }) {
 function DashboardSkeleton({ role }) {
   return (
     <>
-      {/* stat card skeletons */}
-      <div className="stats-grid">
-        {Array.from({ length: role === 'admin' ? 11 : 5 }).map((_, i) => (
+      {/* Row 1 skeleton — always 5 */}
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+        {Array.from({ length: 5 }).map((_, i) => (
           <div className="skeleton-stat-card" key={i}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Sk w={88} h={11} />
@@ -219,6 +221,21 @@ function DashboardSkeleton({ role }) {
           </div>
         ))}
       </div>
+
+      {/* Row 2 skeleton — admin only */}
+      {role === 'admin' && (
+        <div className="stats-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div className="skeleton-stat-card" key={i}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Sk w={88} h={11} />
+                <Sk w={48} h={30} r={8} />
+              </div>
+              <Sk w={42} h={42} r="50%" />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="dashboard-split">
         {/* Today's tickets skeleton */}

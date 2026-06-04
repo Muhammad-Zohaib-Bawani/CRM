@@ -119,6 +119,12 @@ export async function getFormResponsesByCampaign(campaignId, pageSize = 500) {
   return Array.isArray(items) ? items : [];
 }
 
+export async function getFormCampaignResponses(campaignId, pageSize = 500) {
+  const data = await get(`/FormCampaigns/${campaignId}/responses?pageNumber=1&pageSize=${pageSize}`);
+  const items = data?.items || data || [];
+  return Array.isArray(items) ? items : [];
+}
+
 export async function exportFormResponsesByCampaign(campaignId) {
   const token = tokenStore.get();
   const res = await fetch(`${BASE}/forms/campaigns/${campaignId}/responses/export`, {
