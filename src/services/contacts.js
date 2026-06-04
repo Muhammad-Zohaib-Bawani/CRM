@@ -1,15 +1,10 @@
-import { get, post, put, del } from './client.js';
+import { get, post, put, del } from '../api/client.js';
 
 function initials(name) {
-  return (name || '')
-    .split(' ')
-    .filter(Boolean)
-    .map((w) => w[0].toUpperCase())
-    .join('')
-    .slice(0, 2);
+  return (name || '').split(' ').filter(Boolean).map((w) => w[0].toUpperCase()).join('').slice(0, 2);
 }
 
-// ── Users ──────────────────────────────────────────────────────────────────
+// ── Users ──────────────────────────────────────────────────────────────────────
 
 function normalizeUser(u) {
   const name = u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim();
@@ -34,7 +29,7 @@ export async function getAgents() {
   return Array.isArray(data) ? data.map(normalizeUser) : [];
 }
 
-// ── Managers ───────────────────────────────────────────────────────────────
+// ── Managers ───────────────────────────────────────────────────────────────────
 
 function normalizeManager(m) {
   return {
@@ -66,7 +61,7 @@ export async function deleteManager(id) {
   return del(`/contacts/managers/${id}`);
 }
 
-// ── Owners ─────────────────────────────────────────────────────────────────
+// ── Owners ─────────────────────────────────────────────────────────────────────
 
 function normalizeOwner(o) {
   return {
@@ -98,7 +93,7 @@ export async function deleteOwner(id) {
   return del(`/contacts/owners/${id}`);
 }
 
-// ── Horses ─────────────────────────────────────────────────────────────────
+// ── Horses ─────────────────────────────────────────────────────────────────────
 
 function normalizeHorse(h) {
   return {
@@ -128,7 +123,7 @@ export async function deleteHorse(id) {
   return del(`/contacts/horses/${id}`);
 }
 
-// ── Shows ──────────────────────────────────────────────────────────────────
+// ── Shows ──────────────────────────────────────────────────────────────────────
 
 function normalizeShow(s) {
   return {
@@ -148,7 +143,7 @@ export async function createShow(req) {
   return normalizeShow(data);
 }
 
-// ── Championships ──────────────────────────────────────────────────────────
+// ── Championships ──────────────────────────────────────────────────────────────
 
 function normalizeChampionship(c) {
   return { id: c.id, name: c.name || '', createdAt: c.createdAt };
@@ -164,20 +159,9 @@ export async function createChampionship(req) {
   return normalizeChampionship(data);
 }
 
-// ── Locations ──────────────────────────────────────────────────────────────
+// ── Locations ──────────────────────────────────────────────────────────────────
 
 export async function getLocations() {
   const data = await get('/contacts/locations');
   return Array.isArray(data) ? data.map((l) => l.name || l) : [];
-}
-
-// ── Contacts (merged) ──────────────────────────────────────────────────────
-
-export async function getAllContacts() {
-  const [users, managers, owners] = await Promise.all([getUsers(), getManagers(), getOwners()]);
-  const userContacts = users.map((u) => ({
-    ...u,
-    userType: u.role === 'admin' ? 'Admin' : 'Agent',
-  }));
-  return [...userContacts, ...managers, ...owners];
 }

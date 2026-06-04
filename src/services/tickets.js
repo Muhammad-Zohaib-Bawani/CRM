@@ -1,13 +1,12 @@
-import { get, post, put, del } from './client.js';
+import { get, post, put, del } from '../api/client.js';
 
-// Status mapping between frontend and backend
 const STATUS_FROM_BACKEND = { Open: 'open', InProgress: 'progress', Completed: 'completed' };
-const STATUS_TO_BACKEND = { open: 'Open', progress: 'InProgress', completed: 'Completed' };
+const STATUS_TO_BACKEND   = { open: 'Open', progress: 'InProgress', completed: 'Completed' };
 
 function normalizeTicket(t) {
   return {
-    id: t.id,                                     // GUID — used for API calls
-    ticketNumber: t.ticketNumber || t.id,         // 'TKT-1001' — used for display
+    id: t.id,
+    ticketNumber: t.ticketNumber || t.id,
     title: t.title || '',
     description: t.description || '',
     type: t.type || 'Task',
@@ -42,16 +41,17 @@ function normalizeTicket(t) {
 export async function getTickets(filter = {}) {
   const params = new URLSearchParams();
   if (filter.pageNumber) params.set('pageNumber', filter.pageNumber);
-  if (filter.pageSize) params.set('pageSize', filter.pageSize);
-  if (filter.search) params.set('search', filter.search);
-  if (filter.status && filter.status !== 'all') params.set('status', STATUS_TO_BACKEND[filter.status] || filter.status);
+  if (filter.pageSize)   params.set('pageSize', filter.pageSize);
+  if (filter.search)     params.set('search', filter.search);
+  if (filter.status && filter.status !== 'all')
+    params.set('status', STATUS_TO_BACKEND[filter.status] || filter.status);
   if (filter.priority && filter.priority !== 'all') params.set('priority', filter.priority);
-  if (filter.type && filter.type !== 'all') params.set('type', filter.type);
-  if (filter.assignedToId) params.set('assignedToId', filter.assignedToId);
-  if (filter.dueDateFrom) params.set('dueDateFrom', filter.dueDateFrom);
-  if (filter.dueDateTo) params.set('dueDateTo', filter.dueDateTo);
+  if (filter.type && filter.type !== 'all')         params.set('type', filter.type);
+  if (filter.assignedToId)  params.set('assignedToId', filter.assignedToId);
+  if (filter.dueDateFrom)   params.set('dueDateFrom', filter.dueDateFrom);
+  if (filter.dueDateTo)     params.set('dueDateTo', filter.dueDateTo);
 
-  const qs = params.toString();
+  const qs   = params.toString();
   const data = await get(`/tickets${qs ? '?' + qs : ''}`);
   const items = data?.items || data || [];
   return Array.isArray(items) ? items.map(normalizeTicket) : [];
@@ -77,13 +77,14 @@ export async function createTicket(input) {
 
 export async function updateTicket(id, patch) {
   const payload = {};
-  if (patch.title !== undefined) payload.title = patch.title;
+  if (patch.title !== undefined)       payload.title = patch.title;
   if (patch.description !== undefined) payload.description = patch.description;
-  if (patch.type !== undefined) payload.type = patch.type;
-  if (patch.priority !== undefined) payload.priority = patch.priority;
-  if (patch.status !== undefined) payload.status = STATUS_TO_BACKEND[patch.status] || patch.status;
-  if (patch.dueDate !== undefined) payload.dueDate = patch.dueDate || null;
-  if (patch.assignedTo !== undefined) payload.assignedToId = patch.assignedTo || null;
+  if (patch.type !== undefined)        payload.type = patch.type;
+  if (patch.priority !== undefined)    payload.priority = patch.priority;
+  if (patch.status !== undefined)
+    payload.status = STATUS_TO_BACKEND[patch.status] || patch.status;
+  if (patch.dueDate !== undefined)     payload.dueDate = patch.dueDate || null;
+  if (patch.assignedTo !== undefined)  payload.assignedToId = patch.assignedTo || null;
   const data = await put(`/tickets/${id}`, payload);
   return normalizeTicket(data);
 }

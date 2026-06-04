@@ -1,4 +1,4 @@
-import { post, tokenStore } from './client.js';
+import { post, tokenStore } from '../api/client.js';
 
 function normalizeUser(u) {
   if (!u) return null;
@@ -22,10 +22,23 @@ export async function login(email, password) {
   return { user: normalizeUser(data.user), token: data.accessToken };
 }
 
-export async function logout(refreshToken) {
+export async function logout() {
+  const refreshToken = tokenStore.getRefresh();
   try {
-    await post('/auth/logout', { refreshToken });
+    if (refreshToken) await post('/auth/logout', { refreshToken });
   } finally {
     tokenStore.clear();
   }
+}
+
+export async function forgotPassword(email) {
+  return post('/auth/forgot-password', { email });
+}
+
+export async function validateResetToken(token) {
+  return post('/auth/validate-reset-password-token', { token });
+}
+
+export async function resetPassword(token, password) {
+  return post('/auth/reset-password', { token, password });
 }

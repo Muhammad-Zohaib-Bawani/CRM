@@ -1,28 +1,14 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import * as ticketApi from '../api/tickets.js';
-import * as notifApi from '../api/emailNotifications.js';
-import * as formApi from '../api/forms.js';
-import * as contactApi from '../api/contacts.js';
-import * as userApi from '../api/users.js';
+import * as ticketApi from '../services/tickets.js';
+import * as notifApi from '../services/notifications.js';
+import * as formApi from '../services/forms.js';
+import * as userApi from '../services/users.js';
+import { fetchCoreData, fetchUsers, fetchAgents, fetchManagedUsersAndRoles, fetchContacts, extractFormId } from '../services/data.js';
 
 const DataContext = createContext(null);
 
 const TICKET_TYPES = ['Bug', 'Task'];
-
-function extractFormId(html) {
-  if (!html) return null;
-  const m = html.match(/\/form\/([\w-]+)/);
-  return m ? m[1] : null;
-}
-
-
-// API calls per page:
-//   /            → tickets, notifications, forms
-//   /tickets     → + users, agents
-//   /notifications → + users, managers, owners, horses, shows, championships, locations
-//   /forms       → (nothing extra — forms already loaded)
-//   /notification-history → (nothing extra)
 
 export function DataProvider({ children }) {
   const { user } = useAuth();
@@ -91,21 +77,10 @@ export function DataProvider({ children }) {
   async function loadCore() {
     setLoading(true);
     try {
-      const [ticketData, notifData, formData] = await Promise.allSettled([
-        ticketApi.getTickets({ pageSize: 200 }),
-        notifApi.getEmailNotifications(1, 200),
-        formApi.getForms(1, 100),
-      ]);
-      const resolve = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallback;
-      const formList = resolve(formData);
-      const formMap = new Map(formList.map((f) => [f.id, f.name]));
-      const enrichedNotifs = resolve(notifData).map((n) => {
-        const fid = extractFormId(n.body);
-        return { ...n, formId: fid, formName: fid ? (formMap.get(fid) || null) : null };
-      });
-      setTickets(resolve(ticketData));
-      setNotifications(enrichedNotifs);
-      setForms(formList);
+      const { tickets, notifications, forms } = await fetchCoreData();
+      setTickets(tickets);
+      setNotifications(notifications);
+      setForms(forms);
     } catch (err) {
       console.error('Failed to load core data:', err);
     } finally {
@@ -118,8 +93,7 @@ export function DataProvider({ children }) {
     if (usersLoadedRef.current) return;
     usersLoadedRef.current = true;
     try {
-      const data = await contactApi.getUsers();
-      setUsers(data);
+      setUsers(await fetchUsers());
     } catch (err) {
       console.error('Failed to load users:', err);
       usersLoadedRef.current = false;
@@ -131,8 +105,7 @@ export function DataProvider({ children }) {
     if (agentsLoadedRef.current) return;
     agentsLoadedRef.current = true;
     try {
-      const data = await contactApi.getAgents();
-      setAgents(data);
+      setAgents(await fetchAgents());
     } catch (err) {
       console.error('Failed to load agents:', err);
       agentsLoadedRef.current = false;
@@ -145,12 +118,9 @@ export function DataProvider({ children }) {
     managedUsersLoadedRef.current = true;
     setManagedUsersLoading(true);
     try {
-      const [usersResult, rolesResult] = await Promise.allSettled([
-        userApi.listUsers({ pageSize: 200 }),
-        userApi.getRoles(),
-      ]);
-      if (usersResult.status === 'fulfilled') setManagedUsers(usersResult.value.items);
-      if (rolesResult.status === 'fulfilled') setRoles(rolesResult.value);
+      const { users: items, roles: roleList } = await fetchManagedUsersAndRoles();
+      setManagedUsers(items);
+      setRoles(roleList);
     } catch (err) {
       console.error('Failed to load managed users:', err);
       managedUsersLoadedRef.current = false;
@@ -165,29 +135,14 @@ export function DataProvider({ children }) {
     contactsLoadedRef.current = true;
     setContactsLoading(true);
     try {
-      const [managerData, ownerData, horseData, showData, champData, locationData] =
-        await Promise.allSettled([
-          contactApi.getManagers(),
-          contactApi.getOwners(),
-          contactApi.getHorses(),
-          contactApi.getShows(),
-          contactApi.getChampionships(),
-          contactApi.getLocations(),
-        ]);
-      const resolve = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallback;
-      const managerList = resolve(managerData);
-      const ownerList   = resolve(ownerData);
-      setManagers(managerList);
-      setOwners(ownerList);
-      setHorses(resolve(horseData));
-      setShows(resolve(showData));
-      setChampionships(resolve(champData));
-      setLocations(resolve(locationData));
-      setContacts([
-        ...users.map((u) => ({ ...u, userType: u.role === 'admin' ? 'Admin' : 'Agent' })),
-        ...managerList,
-        ...ownerList,
-      ]);
+      const result = await fetchContacts(users);
+      setManagers(result.managers);
+      setOwners(result.owners);
+      setHorses(result.horses);
+      setShows(result.shows);
+      setChampionships(result.championships);
+      setLocations(result.locations);
+      setContacts(result.contacts);
     } catch (err) {
       console.error('Failed to load contacts:', err);
       contactsLoadedRef.current = false;
@@ -265,7 +220,7 @@ export function DataProvider({ children }) {
 
   const sendNotification = useCallback(async (notif, currentUser, recipientCount) => {
     try {
-      const record = await notifApi.sendEmailNotification(notif);
+      const record = await notifApi.sendNotification(notif);
       const formId = extractFormId(notif.body);
       const attachedForm = formId ? forms.find((f) => f.id === formId) : null;
       const enriched = { ...record, formId: formId || null, formName: attachedForm?.name || null };

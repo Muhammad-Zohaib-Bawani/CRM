@@ -1,4 +1,5 @@
-import { get, post, put, del } from './client.js';
+import { get, post, put, del, BASE, tokenStore } from '../api/client.js';
+import { getNotifications } from './notifications.js';
 
 function normalizeField(f) {
   let options = f.options;
@@ -31,6 +32,16 @@ function normalizeForm(f) {
   };
 }
 
+function capitalize(str) {
+  if (!str) return 'Text';
+  const map = {
+    text: 'Text', textarea: 'Textarea', toggle: 'Toggle',
+    checkbox: 'Checkbox', date: 'Date', time: 'Time',
+    select: 'Select', number: 'Text', email: 'Text', other: 'Text',
+  };
+  return map[str.toLowerCase()] || 'Text';
+}
+
 export async function getForms(pageNumber = 1, pageSize = 100, search = '') {
   const qs = `?pageNumber=${pageNumber}&pageSize=${pageSize}${search ? `&search=${encodeURIComponent(search)}` : ''}`;
   const data = await get(`/forms${qs}`);
@@ -43,7 +54,7 @@ export async function getFormById(id) {
   return normalizeForm(data);
 }
 
-export async function createForm(form, currentUser) {
+export async function createForm(form) {
   const payload = {
     title: form.name,
     webhookUrl: form.webhookUrl || null,
@@ -103,12 +114,50 @@ export async function getFormResponses(formId, pageNumber = 1, pageSize = 200) {
   return Array.isArray(items) ? items : [];
 }
 
-function capitalize(str) {
-  if (!str) return 'Text';
-  const map = {
-    text: 'Text', textarea: 'Textarea', toggle: 'Toggle',
-    checkbox: 'Checkbox', date: 'Date', time: 'Time',
-    select: 'Select', number: 'Text', email: 'Text', other: 'Text',
-  };
-  return map[str.toLowerCase()] || 'Text';
+export async function getFormResponsesByCampaign(campaignId, pageSize = 500) {
+  const data = await get(`/forms/campaigns/${campaignId}/responses?pageNumber=1&pageSize=${pageSize}`);
+  const items = data?.items || data || [];
+  return Array.isArray(items) ? items : [];
+}
+
+export async function exportFormResponsesByCampaign(campaignId) {
+  const token = tokenStore.get();
+  const res = await fetch(`${BASE}/forms/campaigns/${campaignId}/responses/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  const fileName = match ? match[1].replace(/['"]/g, '') : 'responses.xlsx';
+  return { blob, fileName };
+}
+
+export async function getFormCampaigns(pageSize = 200) {
+  const [notifications, formList] = await Promise.all([
+    getNotifications(1, pageSize),
+    getForms(1, 100),
+  ]);
+  const formMap = new Map(formList.map((f) => [f.id, f]));
+  return notifications
+    .map((n) => {
+      const m = n.body ? n.body.match(/\/form\/([\w-]+)/) : null;
+      const fid = m ? m[1] : null;
+      const form = fid ? (formMap.get(fid) || null) : null;
+      return { ...n, formId: fid, form, formName: form?.name ?? null };
+    })
+    .filter((n) => n.formId);
+}
+
+export async function exportFormResponses(formId) {
+  const token = tokenStore.get();
+  const res = await fetch(`${BASE}/forms/${formId}/responses/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error('Export failed');
+  const blob = await res.blob();
+  const disposition = res.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+  const fileName = match ? match[1].replace(/['"]/g, '') : 'responses.xlsx';
+  return { blob, fileName };
 }

@@ -1,4 +1,4 @@
-import { get, post, put, del } from './client.js';
+import { get, post, put, del } from '../api/client.js';
 
 function initials(name) {
   return (name || '').split(' ').filter(Boolean).map((w) => w[0].toUpperCase()).join('').slice(0, 2);

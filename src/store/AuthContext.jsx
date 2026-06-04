@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { login as apiLogin, logout as apiLogout } from '../api/auth.js';
-import { tokenStore } from '../api/client.js';
+import { login as apiLogin, logout as apiLogout } from '../services/auth.js';
 
 const AuthContext = createContext(null);
 
@@ -34,8 +33,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
-    const rt = tokenStore.getRefresh();
-    try { await apiLogout(rt); } catch { /* ignore */ }
+    try { await apiLogout(); } catch { /* ignore */ }
     setUser(null);
     localStorage.removeItem(USER_KEY);
   }, []);

@@ -11,29 +11,36 @@ const isSameDay = (a, b) =>
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const isAdmin = user.role === 'admin';
   const { tickets, notifications, forms, users, loading, loadUsers } = useData();
 
-  useEffect(() => { loadUsers(); }, [loadUsers]);
+  useEffect(() => { if (isAdmin) loadUsers(); }, [isAdmin, loadUsers]);
 
   const now = new Date();
 
-  const scopedTickets = useMemo(() => {
-    if (user.role === 'admin') return tickets;
-    return tickets.filter((t) => t.assignedTo === user.id);
-  }, [tickets, user]);
+  const scopedTickets = useMemo(
+    () => isAdmin ? tickets : tickets.filter((t) => t.assignedTo === user.id),
+    [tickets, user, isAdmin],
+  );
 
-  const counts = useMemo(() => ({
-    total: scopedTickets.length,
-    open: scopedTickets.filter((t) => t.status === 'open').length,
-    progress: scopedTickets.filter((t) => t.status === 'progress').length,
-    completed: scopedTickets.filter((t) => t.status === 'completed').length,
-    overdue: scopedTickets.filter(
-      (t) => t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < now
-    ).length,
-    notificationsToday: notifications.filter((n) => isSameDay(new Date(n.sentAt), now)).length,
-    activeForms: forms.length,
-    totalAgents: users.filter((u) => u.role === 'agent').length,
-  }), [scopedTickets, notifications, forms, users]);
+  const counts = useMemo(() => {
+    const base = {
+      total:     scopedTickets.length,
+      open:      scopedTickets.filter((t) => t.status === 'open').length,
+      progress:  scopedTickets.filter((t) => t.status === 'progress').length,
+      completed: scopedTickets.filter((t) => t.status === 'completed').length,
+      overdue:   scopedTickets.filter(
+        (t) => t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < now,
+      ).length,
+    };
+    if (!isAdmin) return base;
+    return {
+      ...base,
+      notificationsToday: notifications.filter((n) => isSameDay(new Date(n.sentAt), now)).length,
+      activeForms: forms.length,
+      totalAgents: users.filter((u) => u.role === 'agent').length,
+    };
+  }, [scopedTickets, isAdmin, notifications, forms, users]);
 
   const todayOpenTickets = useMemo(
     () => scopedTickets.filter((t) => t.status === 'open' && isSameDay(new Date(t.createdAt), now)),
@@ -46,7 +53,7 @@ export default function Dashboard() {
     { label: 'Completed',  value: counts.completed,  color: 'var(--status-completed)' },
   ];
 
-  const userById = (id) => users.find((u) => u.id === id);
+  const userById = (id) => users.find((u) => u.id === id) || (id === user.id ? user : null);
 
   return (
     <div>
@@ -71,14 +78,18 @@ export default function Dashboard() {
         <>
           {/* Stat cards */}
           <div className="stats-grid">
-            <StatCard label="Total Tickets"              value={counts.total}              icon="fa-ticket" />
-            <StatCard label="Open"                       value={counts.open}               icon="fa-folder-open"          variant="open" />
-            <StatCard label="In Progress"                value={counts.progress}           icon="fa-spinner"              variant="progress" />
-            <StatCard label="Completed"                  value={counts.completed}          icon="fa-circle-check"         variant="completed" />
-            <StatCard label="Overdue"                    value={counts.overdue}            icon="fa-triangle-exclamation" variant="overdue" />
-            <StatCard label="Notifications Sent (Daily)" value={counts.notificationsToday} icon="fa-paper-plane" />
-            <StatCard label="Active Forms"               value={counts.activeForms}        icon="fa-clipboard-list" />
-            <StatCard label="Total Agents"               value={counts.totalAgents}        icon="fa-headset" />
+            <StatCard label="Total Tickets" value={counts.total}     icon="fa-ticket" />
+            <StatCard label="Open"          value={counts.open}      icon="fa-folder-open"          variant="open" />
+            <StatCard label="In Progress"   value={counts.progress}  icon="fa-spinner"              variant="progress" />
+            <StatCard label="Completed"     value={counts.completed} icon="fa-circle-check"         variant="completed" />
+            <StatCard label="Overdue"       value={counts.overdue}   icon="fa-triangle-exclamation" variant="overdue" />
+            {isAdmin && (
+              <>
+                <StatCard label="Notifications Sent (Daily)" value={counts.notificationsToday} icon="fa-paper-plane" />
+                <StatCard label="Active Forms"               value={counts.activeForms}        icon="fa-clipboard-list" />
+                <StatCard label="Total Agents"               value={counts.totalAgents}        icon="fa-headset" />
+              </>
+            )}
           </div>
 
           {/* Split section */}

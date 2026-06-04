@@ -6,6 +6,19 @@ import { useData, statusLabel } from '../store/DataContext.jsx';
 import TicketModal from '../components/TicketModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
 
+const TYPE_META = {
+  Bug:  { icon: 'fa-bug',        bg: '#fee2e2', color: '#b91c1c' },
+  Task: { icon: 'fa-list-check', bg: '#dbeafe', color: '#1d4ed8' },
+};
+function TypePill({ type }) {
+  const m = TYPE_META[type] || { icon: 'fa-tag', bg: 'var(--brand-soft)', color: 'var(--brand-deep)' };
+  return (
+    <span className="badge" style={{ background: m.bg, color: m.color }}>
+      <i className={`fa-solid ${m.icon}`} style={{ marginRight: 4 }} />{type}
+    </span>
+  );
+}
+
 const STATUSES = [
   { key: 'open', label: 'Open' },
   { key: 'progress', label: 'In Progress' },
@@ -103,7 +116,7 @@ export default function Tickets() {
     setDragOverCol(null);
   };
 
-  const userById = (id) => users.find((u) => u.id === id);
+  const userById = (id) => users.find((u) => u.id === id) || (id === user.id ? user : null);
   const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : '—');
   const isOverdue = (t) => t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < new Date();
 
@@ -276,7 +289,7 @@ export default function Tickets() {
                         </div>
                       )}
                     </td>
-                    <td><span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span></td>
+                    <td><TypePill type={t.type} /></td>
                     <td><span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span></td>
                     <td>{a ? a.name : <em style={{ color: 'var(--muted)' }}>Unassigned</em>}</td>
                     <td style={{ color: overdue ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: overdue ? 600 : 400 }}>
@@ -306,7 +319,7 @@ export default function Tickets() {
                 <p className="desc">{t.description || 'No description'}</p>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
                   <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                  <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span>
+                  <TypePill type={t.type} />
                   {t.dueDate && (
                     <span className="badge" style={{ background: overdue ? '#fee2e2' : '#f3f4f6', color: overdue ? '#b91c1c' : 'var(--muted)' }}>
                       <i className="fa-solid fa-calendar" /> {fmtDate(t.dueDate)}
@@ -364,7 +377,7 @@ export default function Tickets() {
                       <div className="title">{t.title}</div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                        <span className="badge" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>{t.type}</span>
+                        <TypePill type={t.type} />
                       </div>
                       <div className="foot">
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>

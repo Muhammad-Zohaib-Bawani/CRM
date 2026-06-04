@@ -1,4 +1,4 @@
-import { get, post } from './client.js';
+import { get, post } from '../api/client.js';
 
 function normalizeNotification(n) {
   return {
@@ -9,9 +9,9 @@ function normalizeNotification(n) {
     sentByName: n.sentByName || '',
     sentAt: n.sentAt || n.createdAt,
     recipientCount: n.totalRecipients || 0,
+    formCampaignId: n.formCampaignId || null,
     attachments: (n.attachments || []).map((a) => ({ name: a.fileName, url: a.fileUrl })),
     recipients: (n.recipients || []).map((r) => {
-      // Guard against Guid.Empty (all-zeros) — treat it as no token
       const rawToken = r.submissionToken || r.SubmissionToken || '';
       const token = rawToken && rawToken !== '00000000-0000-0000-0000-000000000000'
         ? rawToken : null;
@@ -30,7 +30,18 @@ function normalizeNotification(n) {
   };
 }
 
-export async function sendEmailNotification(payload) {
+export async function getNotifications(pageNumber = 1, pageSize = 50) {
+  const data = await get(`/emailnotifications?pageNumber=${pageNumber}&pageSize=${pageSize}`);
+  const items = data?.items || data || [];
+  return Array.isArray(items) ? items.map(normalizeNotification) : [];
+}
+
+export async function getNotificationById(id) {
+  const data = await get(`/emailnotifications/${id}`);
+  return normalizeNotification(data);
+}
+
+export async function sendNotification(payload) {
   const body = {
     subject: payload.subject,
     bodyHtml: payload.body,
@@ -45,16 +56,5 @@ export async function sendEmailNotification(payload) {
     })),
   };
   const data = await post('/emailnotifications', body);
-  return normalizeNotification(data);
-}
-
-export async function getEmailNotifications(pageNumber = 1, pageSize = 50) {
-  const data = await get(`/emailnotifications?pageNumber=${pageNumber}&pageSize=${pageSize}`);
-  const items = data?.items || data || [];
-  return Array.isArray(items) ? items.map(normalizeNotification) : [];
-}
-
-export async function getEmailNotificationById(id) {
-  const data = await get(`/emailnotifications/${id}`);
   return normalizeNotification(data);
 }

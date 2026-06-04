@@ -12,8 +12,6 @@ const EMPTY_FORM = {
   role: '',
   dialCode: '+1',
   mobile: '',
-  password: '',
-  confirmPassword: '',
 };
 
 function formatDialLabel(opt, { context }) {
@@ -41,16 +39,12 @@ export default function UserModal({ mode, user, roles = [], saving = false, onCl
         role: user.role || defaultRole,
         dialCode: user.dialCode || '+1',
         mobile: user.mobile || user.phone || '',
-        password: '',
-        confirmPassword: '',
       });
     } else {
       setForm({ ...EMPTY_FORM, role: defaultRole });
     }
     setErrors({});
   }, [mode, user, defaultRole]);
-
-  const needsPassword = form.role === 'admin' || form.role === 'agent';
 
   const set = (key, val) => {
     setForm((prev) => ({ ...prev, [key]: val }));
@@ -65,13 +59,6 @@ export default function UserModal({ mode, user, roles = [], saving = false, onCl
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Invalid email address';
     if (!form.mobile.trim()) e.mobile = 'Phone number is required';
     if (!form.role) e.role = 'Role is required';
-    if (needsPassword) {
-      if (mode === 'create' && !form.password) e.password = 'Password is required';
-      if (form.password) {
-        if (form.password.length < 6) e.password = 'Must be at least 6 characters';
-        if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
-      }
-    }
     return e;
   };
 
@@ -88,7 +75,6 @@ export default function UserModal({ mode, user, roles = [], saving = false, onCl
       role: form.role,
       dialCode: form.dialCode,
       mobile: form.mobile.trim(),
-      ...(needsPassword && form.password ? { password: form.password } : {}),
     });
   };
 
@@ -204,45 +190,14 @@ export default function UserModal({ mode, user, roles = [], saving = false, onCl
               {errors.mobile && <div className="field-error"><i className="fa-solid fa-circle-exclamation" />{errors.mobile}</div>}
             </div>
 
-            {/* Password — only for Admin & Agent */}
-            {needsPassword && (
-              <>
-                <div className="field">
-                  <label>
-                    Password
-                    {mode === 'edit' && (
-                      <span style={{
-                        fontWeight: 400, textTransform: 'none',
-                        letterSpacing: 0, fontSize: 11, color: 'var(--muted)', marginLeft: 6,
-                      }}>
-                        (leave blank to keep current)
-                      </span>
-                    )}
-                  </label>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => set('password', e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    disabled={saving}
-                  />
-                  {errors.password && <div className="field-error"><i className="fa-solid fa-circle-exclamation" />{errors.password}</div>}
-                </div>
-
-                <div className="field">
-                  <label>Confirm Password</label>
-                  <input
-                    type="password"
-                    value={form.confirmPassword}
-                    onChange={(e) => set('confirmPassword', e.target.value)}
-                    placeholder="••••••••"
-                    autoComplete="new-password"
-                    disabled={saving}
-                  />
-                  {errors.confirmPassword && <div className="field-error"><i className="fa-solid fa-circle-exclamation" />{errors.confirmPassword}</div>}
-                </div>
-              </>
+            {mode === 'create' && (
+              <div style={{
+                fontSize: 12, color: 'var(--muted)', background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px',
+              }}>
+                <i className="fa-solid fa-envelope" style={{ marginRight: 6, color: 'var(--brand)' }} />
+                An invitation email will be sent to this address so the user can set their own password.
+              </div>
             )}
           </div>
 

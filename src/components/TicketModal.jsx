@@ -3,7 +3,7 @@ import Select from 'react-select';
 import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
-import { getTicketById } from '../api/tickets.js';
+import { getTicketById } from '../services/tickets.js';
 import { rsStyles, toOptions } from '../utils/selectStyles.js';
 
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
@@ -98,8 +98,8 @@ export default function TicketModal({ mode, ticket, onClose }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); handleAddComment(); }
   };
 
-  const author = t.createdBy ? users.find((u) => u.id === t.createdBy) : null;
-  const assignee = t.assignedTo ? users.find((u) => u.id === t.assignedTo) : null;
+  const author = t.createdBy ? (users.find((u) => u.id === t.createdBy) || (t.createdBy === user.id ? user : null)) : null;
+  const assignee = t.assignedTo ? (users.find((u) => u.id === t.assignedTo) || (t.assignedTo === user.id ? user : null)) : null;
   const isOverdue = !isCreate && t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < new Date();
 
   return (

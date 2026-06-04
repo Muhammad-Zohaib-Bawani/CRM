@@ -1,5 +1,5 @@
 import { useState, useTransition } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../store/AuthContext.jsx";
 
 const ROLES = [
@@ -91,7 +91,15 @@ export default function Login() {
           </div>
 
           <div className="field">
-            <label>Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <label>Password</label>
+              <Link
+                to="/forgot-password"
+                style={{ fontSize: 12, color: 'var(--brand)', textDecoration: 'none' }}
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               value={password}

@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useData } from '../store/DataContext.jsx';
-import { getFormResponses } from '../api/forms.js';
+import { getFormCampaigns, getFormResponses, getFormResponsesByCampaign, exportFormResponsesByCampaign } from '../services/forms.js';
 
 const ROLE_META = {
   admin:         { label: 'Admin',        cls: 'type-admin',   icon: 'fa-crown'     },
@@ -68,11 +67,30 @@ function SkeletonRecipientRows() {
 }
 
 export default function FormTracking() {
-  const { notifications, forms, loading } = useData();
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading]     = useState(true);
 
-  const [expandedId, setExpandedId]     = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      try {
+        const data = await getFormCampaigns();
+        if (!cancelled) setCampaigns(data);
+      } catch (err) {
+        console.error('Failed to load form campaigns:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const [expandedId, setExpandedId]       = useState(null);
   const [responseModal, setResponseModal] = useState(null);
-  const [copiedId, setCopiedId]         = useState(null);
+  const [allResponsesModal, setAllResponsesModal] = useState(null); // { notif, form }
+  const [copiedId, setCopiedId]           = useState(null);
 
   // ── API responses per formId ──────────────────────────────────────────────
   const [apiResponses, setApiResponses] = useState({});   // { formId: [...] }
@@ -95,27 +113,20 @@ export default function FormTracking() {
     }
   }, []);
 
-  const formMap = useMemo(() => new Map(forms.map((f) => [f.id, f])), [forms]);
-
-  const tracked = useMemo(
-    () => notifications.filter((n) => n.formId),
-    [notifications],
-  );
-
-  // Load responses for all tracked notifications on mount / when tracked list changes
+  // Load responses for all campaigns on mount / when campaigns list changes
   useEffect(() => {
-    tracked.forEach((n) => { if (n.formId) loadApiResponses(n.formId); });
-  }, [tracked, loadApiResponses]);
+    campaigns.forEach((n) => { if (n.formId) loadApiResponses(n.formId); });
+  }, [campaigns, loadApiResponses]);
 
   // When a card is expanded, load its responses. Force-refresh if any recipient
   // is already marked submitted (so "View Response" has real data)
   useEffect(() => {
     if (!expandedId) return;
-    const notif = tracked.find((n) => n.id === expandedId);
+    const notif = campaigns.find((n) => n.id === expandedId);
     if (!notif?.formId) return;
     const hasSubmitted = (notif.recipients || []).some((r) => r.isFormSubmitted);
     loadApiResponses(notif.formId, { force: hasSubmitted });
-  }, [expandedId, tracked, loadApiResponses]);
+  }, [expandedId, campaigns, loadApiResponses]);
 
   // ── Response lookup helpers ───────────────────────────────────────────────
 
@@ -160,8 +171,12 @@ export default function FormTracking() {
   };
 
   const openResponse = (notif, recipient, resp) => {
-    const form = formMap.get(notif.formId);
-    setResponseModal({ notif, recipient, resp, form });
+    setResponseModal({ notif, recipient, resp, form: notif.form });
+  };
+
+  const openAllResponses = (e, notif) => {
+    e.stopPropagation();
+    setAllResponsesModal({ notif, form: notif.form });
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -174,7 +189,7 @@ export default function FormTracking() {
           <div className="sub">
             {loading
               ? 'Loading…'
-              : `${tracked.length} campaign${tracked.length === 1 ? '' : 's'} with forms attached`}
+              : `${campaigns.length} campaign${campaigns.length === 1 ? '' : 's'} with forms attached`}
           </div>
         </div>
       </div>
@@ -183,7 +198,7 @@ export default function FormTracking() {
         <div className="ft-list">
           {Array.from({ length: 3 }).map((_, i) => <SkeletonCampaignCard key={i} />)}
         </div>
-      ) : tracked.length === 0 ? (
+      ) : campaigns.length === 0 ? (
         <div className="empty-state">
           <i className="fa-solid fa-chart-bar" />
           <h3>No form campaigns yet</h3>
@@ -196,7 +211,7 @@ export default function FormTracking() {
         </div>
       ) : (
         <div className="ft-list">
-          {tracked.map((notif) => {
+          {campaigns.map((notif) => {
             const { total, completed, pending } = statsFor(notif);
             const isOpen = expandedId === notif.id;
             const isLoadingResponses = loadingForms.has(notif.formId);
@@ -247,9 +262,18 @@ export default function FormTracking() {
                       <span className="ft-stat-val">{total}</span>
                       <span className="ft-stat-lbl">Total</span>
                     </div>
+                    <div style={{ width: 1, height: 28, background: 'var(--line)' }} />
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={(e) => openAllResponses(e, notif)}
+                      title="View all responses"
+                      style={{ fontSize: 13, padding: '4px 8px' }}
+                    >
+                      <i className="fa-solid fa-table-list" />
+                    </button>
                     <i
                       className={`fa-solid fa-chevron-${isOpen ? 'up' : 'down'}`}
-                      style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 8 }}
+                      style={{ fontSize: 13, color: 'var(--muted)', marginLeft: 4 }}
                     />
                   </div>
                 </div>
@@ -378,6 +402,146 @@ export default function FormTracking() {
           onClose={() => setResponseModal(null)}
         />
       )}
+
+      {allResponsesModal && (
+        <AllResponsesModal
+          notif={allResponsesModal.notif}
+          form={allResponsesModal.form}
+          onClose={() => setAllResponsesModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── All responses listing modal ───────────────────────────────────────────────
+
+function AllResponsesModal({ notif, form, onClose }) {
+  const [responses, setResponses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (!notif.formCampaignId) { setLoading(false); return; }
+    let cancelled = false;
+    getFormResponsesByCampaign(notif.formCampaignId)
+      .then((data) => { if (!cancelled) setResponses(data); })
+      .catch((err) => console.error('Failed to load campaign responses:', err))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [notif.formCampaignId]);
+
+  const fieldLabels = useMemo(() => {
+    if (form?.fields?.length) {
+      return form.fields
+        .slice()
+        .sort((a, b) => (a.sort || 0) - (b.sort || 0))
+        .map((f) => f.name);
+    }
+    const seen = new Set();
+    responses.forEach((r) => (r.values || []).forEach((v) => seen.add(v.fieldLabel)));
+    return [...seen];
+  }, [form, responses]);
+
+  const handleExport = async () => {
+    if (!notif.formCampaignId) return;
+    setExporting(true);
+    try {
+      const { blob, fileName } = await exportFormResponsesByCampaign(notif.formCampaignId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert('Export failed: ' + (err.message || 'Unknown error'));
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal wide" style={{ maxWidth: 900, width: '95vw' }}>
+        <div className="modal-head">
+          <div>
+            <h2>All Responses</h2>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3 }}>
+              <i className="fa-solid fa-clipboard-list" style={{ marginRight: 5 }} />
+              {form?.name || notif.formName || 'Form'} ·{' '}
+              <i className="fa-solid fa-paper-plane" style={{ marginLeft: 6, marginRight: 5 }} />
+              {notif.subject}
+            </div>
+          </div>
+          <i className="fa-solid fa-xmark close" onClick={onClose} />
+        </div>
+
+        <div className="modal-body" style={{ padding: 0, maxHeight: '60vh', overflowY: 'auto' }}>
+          {!notif.formCampaignId ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              <i className="fa-solid fa-circle-info" style={{ fontSize: 28, display: 'block', marginBottom: 12 }} />
+              Campaign tracking is only available for notifications sent after this feature was enabled.
+            </div>
+          ) : loading ? (
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+              <i className="fa-solid fa-circle-notch fa-spin" style={{ fontSize: 24, color: 'var(--brand)' }} />
+            </div>
+          ) : responses.length === 0 ? (
+            <div style={{ padding: '40px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+              <i className="fa-solid fa-inbox" style={{ fontSize: 28, display: 'block', marginBottom: 12 }} />
+              No responses submitted yet.
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="ft-table" style={{ minWidth: 600 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: 36 }}>#</th>
+                    <th>Submitted By</th>
+                    <th>Email</th>
+                    <th>Submitted At</th>
+                    {fieldLabels.map((label) => (
+                      <th key={label}>{label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {responses.map((r, idx) => (
+                    <tr key={r.id}>
+                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>{idx + 1}</td>
+                      <td style={{ fontWeight: 600, color: 'var(--ink)' }}>{r.submittedByName || '—'}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--muted)' }}>{r.submittedByEmail || '—'}</td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtDateTime(r.submittedAt)}</td>
+                      {fieldLabels.map((label) => {
+                        const val = (r.values || []).find((v) => v.fieldLabel === label);
+                        return (
+                          <td key={label} style={{ fontSize: 13 }}>
+                            {val?.value || <em style={{ color: 'var(--muted)' }}>—</em>}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="modal-foot">
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+          <button
+            className="btn btn-primary"
+            onClick={handleExport}
+            disabled={exporting || responses.length === 0}
+          >
+            {exporting
+              ? <><i className="fa-solid fa-circle-notch fa-spin" /> Exporting…</>
+              : <><i className="fa-solid fa-file-excel" /> Export to Excel</>}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
