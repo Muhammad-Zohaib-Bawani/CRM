@@ -23,7 +23,7 @@ export default function Forms() {
   }
 
   const copyLink = (form) => {
-    const url = `${window.location.origin}/form/${form.id}`;
+    const url = `${window.location.origin}/form/${form.id}?nid=[[NOTIFICATION_ID]]&rid=[[RECIPIENT_ID]]&token=[[SUBMISSION_TOKEN]]`;
     try {
       navigator.clipboard.writeText(url);
       showToast('Form link copied to clipboard', 'fa-link');
