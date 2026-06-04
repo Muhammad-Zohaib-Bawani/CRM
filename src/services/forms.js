@@ -1,5 +1,4 @@
 import { get, post, put, del, BASE, tokenStore } from '../api/client.js';
-import { getNotifications } from './notifications.js';
 
 function normalizeField(f) {
   let options = f.options;
@@ -133,20 +132,38 @@ export async function exportFormResponsesByCampaign(campaignId) {
   return { blob, fileName };
 }
 
+function normalizeCampaign(c) {
+  const n = c.emailNotification || {};
+  return {
+    id: n.id || c.emailNotificationId,
+    subject: n.subject || '',
+    sentAt: n.sentAt || c.createdAt,
+    sentByName: n.sentByName || '',
+    formId: c.formId || null,
+    formName: c.formName || '',
+    formCampaignId: c.id,
+    form: { id: c.formId, name: c.formName || '', fields: [] },
+    recipients: (n.recipients || []).map((r) => {
+      const raw = r.submissionToken || '';
+      const token = raw && raw !== '00000000-0000-0000-0000-000000000000' ? raw : null;
+      return {
+        id: r.id,
+        email: r.email || '',
+        name: r.name || '',
+        userType: r.recipientType || 'User',
+        status: r.status || '',
+        submissionToken: token,
+        isFormSubmitted: r.isFormSubmitted ?? false,
+        formSubmittedAt: r.formSubmittedAt ?? null,
+      };
+    }),
+  };
+}
+
 export async function getFormCampaigns(pageSize = 200) {
-  const [notifications, formList] = await Promise.all([
-    getNotifications(1, pageSize),
-    getForms(1, 100),
-  ]);
-  const formMap = new Map(formList.map((f) => [f.id, f]));
-  return notifications
-    .map((n) => {
-      const m = n.body ? n.body.match(/\/form\/([\w-]+)/) : null;
-      const fid = m ? m[1] : null;
-      const form = fid ? (formMap.get(fid) || null) : null;
-      return { ...n, formId: fid, form, formName: form?.name ?? null };
-    })
-    .filter((n) => n.formId);
+  const data = await get(`/FormCampaigns?pageNumber=1&pageSize=${pageSize}`);
+  const items = data?.items || (Array.isArray(data) ? data : []);
+  return items.map(normalizeCampaign);
 }
 
 export async function exportFormResponses(formId) {

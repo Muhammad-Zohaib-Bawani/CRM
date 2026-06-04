@@ -65,9 +65,15 @@ export default function TicketModal({ mode, ticket, onClose }) {
     };
     setSubmitting(true);
     try {
-      if (isCreate) await createTicket(payload, user);
-      else if (canEditAll) await updateTicket(ticket.id, payload);
-      onClose();
+      if (isCreate) {
+        const created = await createTicket(payload, user);
+        onClose(created);
+      } else if (canEditAll) {
+        const updated = await updateTicket(ticket.id, payload);
+        onClose(updated);
+      } else {
+        onClose(null);
+      }
     } catch {
       // error already shown via toast in DataContext — keep modal open
     } finally {

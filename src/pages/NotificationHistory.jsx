@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useData } from '../store/DataContext.jsx';
+import { getNotifications } from '../services/notifications.js';
 
 function stripHtml(html) {
   const div = document.createElement('div');
@@ -15,9 +15,13 @@ function getTodayMidnight() {
 }
 
 export default function NotificationHistory() {
-  const { notifications } = useData();
+  const [notifications, setNotifications] = useState([]);
   const [tab, setTab] = useState('recent');
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    getNotifications(1, 200).then(setNotifications).catch(console.error);
+  }, []);
 
   const todayTs = getTodayMidnight();
 

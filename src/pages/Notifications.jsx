@@ -6,13 +6,24 @@ import RichTextEditor from '../components/RichTextEditor.jsx';
 import ImportRecipientsModal from '../components/ImportRecipientsModal.jsx';
 import SelectRecipientsModal from '../components/SelectRecipientsModal.jsx';
 import ImportFromExcelModal from '../components/ImportFromExcelModal.jsx';
+import { getNotifications } from '../services/notifications.js';
+import { getForms } from '../services/forms.js';
+import { extractFormId } from '../services/data.js';
 
 export default function Notifications() {
   const { user } = useAuth();
-  const { forms, notifications, sendNotification, showToast, loadUsers, loadContacts, contactsLoading } = useData();
+  const { sendNotification, showToast, loadUsers, loadContacts, contactsLoading } = useData();
   const navigate = useNavigate();
 
-  useEffect(() => { loadUsers(); loadContacts(); }, [loadUsers, loadContacts]);
+  const [notifications, setNotifications] = useState([]);
+  const [forms, setForms] = useState([]);
+
+  useEffect(() => {
+    getNotifications(1, 200).then(setNotifications).catch(console.error);
+    getForms(1, 100).then(setForms).catch(console.error);
+    loadUsers();
+    loadContacts();
+  }, [loadUsers, loadContacts]);
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -91,7 +102,7 @@ export default function Notifications() {
     if (activeRecipients.length === 0) return alert('Add at least one recipient via Import');
     setSending(true);
     try {
-      await sendNotification(
+      const record = await sendNotification(
         {
           subject,
           body,
@@ -101,6 +112,11 @@ export default function Notifications() {
         user,
         activeRecipients.length
       );
+      if (record) {
+        const fid = extractFormId(body);
+        const attachedForm = fid ? forms.find((f) => f.id === fid) : null;
+        setNotifications((prev) => [{ ...record, formId: fid || null, formName: attachedForm?.name || null }, ...prev]);
+      }
       setSubject('');
       setBody('');
       setAttachments([]);

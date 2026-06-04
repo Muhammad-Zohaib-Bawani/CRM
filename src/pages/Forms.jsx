@@ -1,16 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
 import FormBuilder from '../components/FormBuilder.jsx';
 import ImportFormModal from '../components/ImportFormModal.jsx';
+import { getForms } from '../services/forms.js';
 
 export default function Forms() {
   const { user } = useAuth();
-  const { forms, deleteForm, showToast } = useData();
+  const { deleteForm, showToast } = useData();
 
   const [tab, setTab] = useState('local'); // 'local' | 'import'
   const [editingForm, setEditingForm] = useState(null);
   const [importFormOpen, setImportFormOpen] = useState(false);
+
+  const [forms, setForms] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchForms = useCallback(async () => {
+    setLoading(true);
+    try {
+      setForms(await getForms(1, 100));
+    } catch (err) {
+      console.error('Failed to load forms:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchForms(); }, [fetchForms]);
 
   if (user.role !== 'admin') {
     return (
@@ -37,7 +54,7 @@ export default function Forms() {
   };
 
   if (editingForm !== null) {
-    return <FormBuilder form={editingForm} onClose={() => setEditingForm(null)} />;
+    return <FormBuilder form={editingForm} onClose={() => { setEditingForm(null); fetchForms(); }} />;
   }
 
   return (
@@ -138,7 +155,13 @@ export default function Forms() {
                   </a>
                   <button
                     className="btn btn-danger btn-sm"
-                    onClick={() => { if (confirm(`Delete form "${f.name}"?`)) deleteForm(f.id); }}
+                    onClick={async () => {
+                      if (!confirm(`Delete form "${f.name}"?`)) return;
+                      try {
+                        await deleteForm(f.id);
+                        setForms((prev) => prev.filter((x) => x.id !== f.id));
+                      } catch {}
+                    }}
                   >
                     <i className="fa-solid fa-trash" />
                   </button>

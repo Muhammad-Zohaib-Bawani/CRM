@@ -1,8 +1,10 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import DonutChart from '../components/DonutChart.jsx';
+import TicketModal from '../components/TicketModal.jsx';
+import { fetchCoreData } from '../services/data.js';
 
 const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() &&
@@ -12,9 +14,30 @@ const isSameDay = (a, b) =>
 export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user.role === 'admin';
-  const { tickets, notifications, forms, users, loading, loadUsers } = useData();
+  const { users, loadUsers, loadAgents } = useData();
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
-  useEffect(() => { if (isAdmin) loadUsers(); }, [isAdmin, loadUsers]);
+  const [tickets, setTickets] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [forms, setForms] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetchCoreData()
+      .then(({ tickets, notifications, forms }) => {
+        if (cancelled) return;
+        setTickets(tickets);
+        setNotifications(notifications);
+        setForms(forms);
+      })
+      .catch((err) => console.error('Dashboard fetch error:', err))
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => { if (isAdmin) { loadUsers(); loadAgents(); } }, [isAdmin, loadUsers, loadAgents]);
 
   const now = new Date();
 
@@ -72,6 +95,17 @@ export default function Dashboard() {
       </div>
 
       {/* ── Skeleton while loading ── */}
+      {ticketModalOpen && (
+        <TicketModal
+          mode="create"
+          ticket={null}
+          onClose={(created) => {
+            if (created) setTickets((prev) => [created, ...prev]);
+            setTicketModalOpen(false);
+          }}
+        />
+      )}
+
       {loading ? (
         <DashboardSkeleton role={user.role} />
       ) : (
@@ -88,6 +122,9 @@ export default function Dashboard() {
                 <StatCard label="Notifications Sent (Daily)" value={counts.notificationsToday} icon="fa-paper-plane" />
                 <StatCard label="Active Forms"               value={counts.activeForms}        icon="fa-clipboard-list" />
                 <StatCard label="Total Agents"               value={counts.totalAgents}        icon="fa-headset" />
+                <ActionCard label="Add Ticket"        icon="fa-plus"           onClick={() => setTicketModalOpen(true)} />
+                <ActionCard label="Send Notification" icon="fa-paper-plane"    to="/notifications" />
+                <ActionCard label="Build Form"        icon="fa-clipboard-list" to="/forms" />
               </>
             )}
           </div>
@@ -148,24 +185,6 @@ export default function Dashboard() {
               </h3>
               <DonutChart data={chartData} centerLabel="Completed" />
 
-              {user.role === 'admin' && (
-                <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: 12, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                    Quick actions
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Link to="/tickets" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>
-                      <i className="fa-solid fa-plus" /> Create new ticket
-                    </Link>
-                    <Link to="/notifications" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>
-                      <i className="fa-solid fa-paper-plane" /> Send notification
-                    </Link>
-                    <Link to="/forms" className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}>
-                      <i className="fa-solid fa-clipboard-list" /> Build form
-                    </Link>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </>
@@ -188,9 +207,9 @@ function Sk({ w = '100%', h = 14, r = 6, mb = 0 }) {
 function DashboardSkeleton({ role }) {
   return (
     <>
-      {/* 8 stat card skeletons */}
+      {/* stat card skeletons */}
       <div className="stats-grid">
-        {Array.from({ length: 8 }).map((_, i) => (
+        {Array.from({ length: role === 'admin' ? 11 : 5 }).map((_, i) => (
           <div className="skeleton-stat-card" key={i}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Sk w={88} h={11} />
@@ -251,15 +270,6 @@ function DashboardSkeleton({ role }) {
             </div>
           </div>
 
-          {/* Quick actions — admin only */}
-          {role === 'admin' && (
-            <div style={{ marginTop: 28, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
-              <Sk w={100} h={11} mb={14} />
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Sk key={i} h={36} r={10} mb={8} />
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </>
@@ -277,5 +287,33 @@ function StatCard({ label, value, icon, variant }) {
       </div>
       <div className="icon"><i className={`fa-solid ${icon}`} /></div>
     </div>
+  );
+}
+
+// ── ActionCard ─────────────────────────────────────────────────────────────
+
+function ActionCard({ label, icon, onClick, to }) {
+  const inner = (
+    <>
+      <div>
+        <div className="label">Quick Action</div>
+        <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: 'var(--brand-deep)' }}>{label}</div>
+      </div>
+      <div className="icon" style={{ background: 'var(--brand-soft)', color: 'var(--brand-deep)' }}>
+        <i className={`fa-solid ${icon}`} />
+      </div>
+    </>
+  );
+  if (to) {
+    return (
+      <Link to={to} className="stat-card" style={{ textDecoration: 'none', cursor: 'pointer' }}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <button onClick={onClick} className="stat-card" style={{ border: 'none', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
+      {inner}
+    </button>
   );
 }

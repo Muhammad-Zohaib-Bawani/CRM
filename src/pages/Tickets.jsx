@@ -1,8 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import Select from 'react-select';
 import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
+import { getTickets, getTicketById } from '../services/tickets.js';
 import TicketModal from '../components/TicketModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
 
@@ -30,9 +31,23 @@ const PRIORITY_OPTS = toOptions(['Low', 'Medium', 'High', 'Urgent'], 'All priori
 
 export default function Tickets() {
   const { user } = useAuth();
-  const { tickets, users, agents, ticketTypes, updateTicketStatus, loadUsers, loadAgents } = useData();
+  const { users, agents, ticketTypes, updateTicketStatus, showToast, loadUsers, loadAgents } = useData();
 
-  useEffect(() => { loadUsers(); loadAgents(); }, [loadUsers, loadAgents]);
+  const [tickets, setTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+
+  const fetchTickets = useCallback(async () => {
+    setLoadingTickets(true);
+    try {
+      setTickets(await getTickets({ pageSize: 200 }));
+    } catch (err) {
+      console.error('Failed to load tickets:', err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTickets(); loadUsers(); loadAgents(); }, [fetchTickets, loadUsers, loadAgents]);
 
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
@@ -92,7 +107,18 @@ export default function Tickets() {
 
   const openCreate = () => { setActiveTicket(null); setModalMode('create'); };
   const openView = (t) => { setActiveTicket(t); setModalMode('view'); };
-  const closeModal = () => { setActiveTicket(null); setModalMode(null); };
+  const closeModal = async (result) => {
+    if (modalMode === 'create' && result) {
+      setTickets((prev) => [result, ...prev]);
+    } else if (modalMode === 'view' && activeTicket?.id) {
+      try {
+        const refreshed = await getTicketById(activeTicket.id);
+        setTickets((prev) => prev.map((t) => t.id === refreshed.id ? refreshed : t));
+      } catch {}
+    }
+    setActiveTicket(null);
+    setModalMode(null);
+  };
   const clearDates = () => { setDateFrom(null); setDateTo(null); };
 
   // Drag-and-drop
@@ -112,7 +138,11 @@ export default function Tickets() {
     const t = tickets.find((x) => x.id === id);
     if (!t || t.status === status) { setDragOverCol(null); return; }
     if (user.role === 'agent' && t.assignedTo !== user.id) { setDragOverCol(null); return; }
-    updateTicketStatus(id, status);
+    const prevStatus = t.status;
+    setTickets((prev) => prev.map((x) => x.id === id ? { ...x, status } : x));
+    updateTicketStatus(id, status).catch(() => {
+      setTickets((prev) => prev.map((x) => x.id === id ? { ...x, status: prevStatus } : x));
+    });
     setDragOverCol(null);
   };
 
