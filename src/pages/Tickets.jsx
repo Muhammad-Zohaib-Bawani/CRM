@@ -7,10 +7,11 @@ import { getTickets, getTicketById } from '../services/tickets.js';
 import TicketModal from '../components/TicketModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
 
+const IMG_EXT = /\.(jpe?g|png|gif|webp|svg)(\?|$)/i;
 function getFirstImgSrc(attachments) {
   for (const a of (attachments || [])) {
     if (a.preview) return a.preview;
-    if (a.type?.startsWith('image/') && a.url) return a.url;
+    if (a.url && (a.type?.startsWith('image/') || IMG_EXT.test(a.url) || IMG_EXT.test(a.name || ''))) return a.url;
   }
   return null;
 }

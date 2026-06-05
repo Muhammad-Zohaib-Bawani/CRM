@@ -127,6 +127,14 @@ export function DataProvider({ children }) {
   const createTicket = useCallback(async (input) => {
     try {
       const ticket = await ticketApi.createTicket(input);
+      const attachmentsToSave = (input.attachments || []).filter((a) => a.url);
+      if (attachmentsToSave.length) {
+        await Promise.all(
+          attachmentsToSave.map((a) =>
+            ticketApi.addAttachment(ticket.id, { fileName: a.name, fileUrl: a.url, fileSize: a.size })
+          )
+        );
+      }
       showToast(`Ticket ${ticket.ticketNumber} created`);
       return ticket;
     } catch (err) {

@@ -17,13 +17,11 @@ function normalizeTicket(t) {
     assignedTo: t.assignedToId || null,
     assignedToName: t.assignedToName || '',
     dueDate: t.dueDate ? t.dueDate.split('T')[0] : '',
-    attachments: (t.attachments || []).map((a) => ({
-      id: a.id,
-      name: a.fileName,
-      url: a.fileUrl,
-      size: a.fileSize,
-      createdAt: a.createdAt,
-    })),
+    attachments: (t.attachments || []).map((a) => {
+      const ext = (a.fileName || '').split('.').pop().toLowerCase();
+      const type = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext) ? `image/${ext === 'jpg' ? 'jpeg' : ext}` : '';
+      return { id: a.id, name: a.fileName, url: a.fileUrl, size: a.fileSize, type, createdAt: a.createdAt };
+    }),
     comments: (t.comments || []).map((c) => ({
       id: c.id,
       authorId: c.userId,
@@ -102,4 +100,13 @@ export async function addComment(ticketId, content) {
     text: data.content,
     at: data.createdAt,
   };
+}
+
+export async function addAttachment(ticketId, { fileName, fileUrl, fileSize }) {
+  const data = await post(`/tickets/${ticketId}/attachments`, { fileName, fileUrl, fileSize });
+  return { id: data.id, name: data.fileName, url: data.fileUrl, size: data.fileSize, createdAt: data.createdAt };
+}
+
+export async function deleteAttachment(ticketId, attachmentId) {
+  return del(`/tickets/${ticketId}/attachments/${attachmentId}`);
 }

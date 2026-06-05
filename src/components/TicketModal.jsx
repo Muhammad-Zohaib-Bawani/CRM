@@ -3,7 +3,7 @@ import Select from 'react-select';
 import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
-import { getTicketById } from '../services/tickets.js';
+import { getTicketById, addAttachment as addAttachmentApi, deleteAttachment as deleteAttachmentApi } from '../services/tickets.js';
 import { post } from '../api/client.js';
 import { rsStyles, toOptions } from '../utils/selectStyles.js';
 
@@ -61,7 +61,7 @@ export default function TicketModal({ mode, ticket, onClose }) {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
     const otherFiles = files.filter((f) => !f.type.startsWith('image/'));
 
-    if (otherFiles.length) {
+    if (otherFiles.length && isCreate) {
       setForm((p) => ({
         ...p,
         attachments: [...(p.attachments || []), ...otherFiles.map((f) => ({ name: f.name, size: f.size, type: f.type }))],
@@ -80,16 +80,27 @@ export default function TicketModal({ mode, ticket, onClose }) {
     setUploadingCount((n) => n - imageFiles.length);
 
     const uploaded = [];
-    results.forEach((r, i) => {
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
       const f = imageFiles[i];
       if (r.status === 'fulfilled') {
         const raw = r.value;
-        const url = typeof raw === 'string' ? raw : (raw?.url || raw?.fileUrl || null);
-        uploaded.push({ name: f.name, size: f.size, type: f.type, ...(url ? { url } : {}) });
+        const url = typeof raw === 'string' ? raw : (raw?.imageUrl || raw?.url || raw?.fileUrl || null);
+        if (!url) { showToast(`Failed to upload ${f.name}`, 'fa-triangle-exclamation'); continue; }
+        if (!isCreate && ticket?.id) {
+          try {
+            const saved = await addAttachmentApi(ticket.id, { fileName: f.name, fileUrl: url, fileSize: f.size });
+            uploaded.push({ id: saved.id, name: saved.name, url: saved.url, size: saved.size, type: f.type, createdAt: saved.createdAt });
+          } catch {
+            showToast(`Failed to save ${f.name}`, 'fa-triangle-exclamation');
+          }
+        } else {
+          uploaded.push({ name: f.name, size: f.size, type: f.type, url });
+        }
       } else {
         showToast(`Failed to upload ${f.name}`, 'fa-triangle-exclamation');
       }
-    });
+    }
 
     if (uploaded.length) {
       setForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...uploaded] }));
@@ -112,7 +123,18 @@ export default function TicketModal({ mode, ticket, onClose }) {
     if (images.length) { e.preventDefault(); uploadAndAdd(images); }
   };
 
-  const removeAttachment = (idx) => update('attachments', (form.attachments || []).filter((_, i) => i !== idx));
+  const removeAttachment = async (idx) => {
+    const att = (form.attachments || [])[idx];
+    if (!isCreate && att?.id && ticket?.id) {
+      try {
+        await deleteAttachmentApi(ticket.id, att.id);
+      } catch {
+        showToast('Failed to delete attachment', 'fa-triangle-exclamation');
+        return;
+      }
+    }
+    update('attachments', (form.attachments || []).filter((_, i) => i !== idx));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
