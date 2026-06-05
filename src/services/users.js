@@ -18,6 +18,7 @@ function normalizeUser(u) {
     role: (u.role || '').toLowerCase(),
     roleName: u.roleName || '',
     isActive: u.isActive !== false,
+    hasPendingInvitation: u.hasPendingInvitation === true,
     initials: initials(name),
   };
 }
@@ -42,6 +43,10 @@ export async function updateUser(id, req) {
 
 export async function deleteUser(id) {
   return del(`/users/${id}`);
+}
+
+export async function resendInvitation(id) {
+  return post(`/users/${id}/resend-invitation`);
 }
 
 export async function getRoles() {

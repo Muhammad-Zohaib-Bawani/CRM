@@ -249,6 +249,11 @@ export function DataProvider({ children }) {
     showToast('User deleted', 'fa-trash');
   }, [showToast]);
 
+  const resendUserInvitation = useCallback(async (id) => {
+    await userApi.resendInvitation(id);
+    showToast('Invitation resent', 'fa-envelope');
+  }, [showToast]);
+
   const resetAll = useCallback(() => {
     usersLoadedRef.current = false;
     agentsLoadedRef.current = false;
@@ -266,7 +271,7 @@ export function DataProvider({ children }) {
         agents, loadAgents,
         managedUsers, managedUsersLoading, loadManagedUsers,
         roles,
-        addManagedUser, updateManagedUser, deleteManagedUser,
+        addManagedUser, updateManagedUser, deleteManagedUser, resendUserInvitation,
         submitFormResponse,
         managers, owners, horses, shows, championships, locations, contacts,
         contactsLoading, loadContacts,

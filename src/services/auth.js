@@ -42,3 +42,11 @@ export async function validateResetToken(token) {
 export async function resetPassword(token, password) {
   return post('/auth/reset-password', { token, password });
 }
+
+export async function validateInvitationToken(token) {
+  return post('/auth/validate-invitation-token', { token });
+}
+
+export async function acceptInvitation(token, password) {
+  return post('/auth/accept-invitation', { token, password });
+}

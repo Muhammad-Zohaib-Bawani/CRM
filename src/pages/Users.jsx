@@ -32,7 +32,7 @@ export default function Users() {
   const {
     managedUsers, managedUsersLoading, loadManagedUsers,
     roles,
-    addManagedUser, updateManagedUser, deleteManagedUser,
+    addManagedUser, updateManagedUser, deleteManagedUser, resendUserInvitation,
     showToast,
   } = useData();
 
@@ -43,6 +43,7 @@ export default function Users() {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resending, setResending] = useState(null);
 
   useEffect(() => { loadManagedUsers(); }, [loadManagedUsers]);
 
@@ -96,6 +97,17 @@ export default function Users() {
       setSaving(false);
     }
   }, [modalMode, activeUser, roles, addManagedUser, updateManagedUser, closeModal, showToast]);
+
+  const handleResendInvitation = useCallback(async (id) => {
+    setResending(id);
+    try {
+      await resendUserInvitation(id);
+    } catch (err) {
+      showToast(err.message || 'Failed to resend invitation', 'fa-triangle-exclamation');
+    } finally {
+      setResending(null);
+    }
+  }, [resendUserInvitation, showToast]);
 
   const handleDelete = useCallback(async () => {
     setDeleting(true);
@@ -236,21 +248,43 @@ export default function Users() {
 
                     {/* Status */}
                     <td>
-                      <span
-                        className="type-pill"
-                        style={{
-                          background: u.isActive ? 'var(--success-soft, #dcfce7)' : '#fee2e2',
-                          color: u.isActive ? 'var(--success, #16a34a)' : '#b91c1c',
-                        }}
-                      >
-                        <i className={`fa-solid ${u.isActive ? 'fa-circle-check' : 'fa-circle-xmark'}`} style={{ marginRight: 5 }} />
-                        {u.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                      {u.hasPendingInvitation ? (
+                        <span
+                          className="type-pill"
+                          style={{ background: '#fef3c7', color: '#b45309' }}
+                        >
+                          <i className="fa-solid fa-envelope-open" style={{ marginRight: 5 }} />
+                          Pending
+                        </span>
+                      ) : (
+                        <span
+                          className="type-pill"
+                          style={{
+                            background: u.isActive ? 'var(--success-soft, #dcfce7)' : '#fee2e2',
+                            color: u.isActive ? 'var(--success, #16a34a)' : '#b91c1c',
+                          }}
+                        >
+                          <i className={`fa-solid ${u.isActive ? 'fa-circle-check' : 'fa-circle-xmark'}`} style={{ marginRight: 5 }} />
+                          {u.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      )}
                     </td>
 
                     {/* Actions */}
                     <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        {u.hasPendingInvitation && (
+                          <button
+                            className="user-action-btn"
+                            title="Resend invitation"
+                            disabled={resending === u.id}
+                            onClick={() => handleResendInvitation(u.id)}
+                          >
+                            {resending === u.id
+                              ? <i className="fa-solid fa-circle-notch fa-spin" />
+                              : <i className="fa-solid fa-paper-plane" />}
+                          </button>
+                        )}
                         <button className="user-action-btn" title="Edit user" onClick={() => openEdit(u)}>
                           <i className="fa-solid fa-pencil" />
                         </button>
