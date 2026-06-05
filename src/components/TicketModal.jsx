@@ -194,8 +194,8 @@ export default function TicketModal({ mode, ticket, onClose }) {
   const isOverdue = !isCreate && t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < new Date();
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()} onPaste={onPaste}>
+    <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal wide" onMouseDown={(e) => e.stopPropagation()} onPaste={onPaste}>
         <div className="modal-head">
           <div>
             <h2>{isCreate ? 'Create Ticket' : t.title}</h2>
