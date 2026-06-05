@@ -1,7 +1,5 @@
 import { get, post, put, del } from '../api/client.js';
-
-const STATUS_FROM_BACKEND = { Open: 'open', InProgress: 'progress', Completed: 'completed' };
-const STATUS_TO_BACKEND   = { open: 'Open', progress: 'InProgress', completed: 'Completed' };
+import { STATUS_FROM_BACKEND, STATUS_TO_BACKEND } from '../enums/tickets.js';
 
 function normalizeTicket(t) {
   return {

@@ -23,6 +23,7 @@ export default function FormView() {
   const [submitted, setSubmitted]     = useState(false);
   const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     let cancelled = false;
@@ -98,10 +99,29 @@ export default function FormView() {
     );
   }
 
-  const handleChange = (fieldId, value) => setValues((prev) => ({ ...prev, [fieldId]: value }));
+  const handleChange = (fieldId, value) => {
+    setValues((prev) => ({ ...prev, [fieldId]: value }));
+    setFieldErrors((prev) => ({ ...prev, [fieldId]: false }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    const errors = {};
+    for (const f of (form?.fields || [])) {
+      if (!f.isRequired) continue;
+      const val = values[f.id];
+      const isEmpty =
+        val === undefined || val === null || val === '' ||
+        (Array.isArray(val) && val.length === 0);
+      if (isEmpty) errors[f.id] = true;
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setSubmitError('Please fill in all required fields.');
+      return;
+    }
+
     setSubmitting(true);
     setSubmitError('');
     const context = {
@@ -129,7 +149,7 @@ export default function FormView() {
       <p className="lead">Please complete the form below.</p>
 
       {sorted.map((f) => (
-        <FieldRenderer key={f.id} field={f} value={values[f.id]} onChange={(v) => handleChange(f.id, v)} />
+        <FieldRenderer key={f.id} field={f} value={values[f.id]} onChange={(v) => handleChange(f.id, v)} error={fieldErrors[f.id]} />
       ))}
 
       {submitError && (
@@ -155,8 +175,26 @@ export default function FormView() {
   );
 }
 
-function FieldRenderer({ field, value, onChange }) {
+function FieldLabel({ field }) {
+  return (
+    <label>
+      {field.name}
+      {field.isRequired && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+    </label>
+  );
+}
+
+function ErrorMsg() {
+  return (
+    <span style={{ color: '#dc2626', fontSize: 12, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+      <i className="fa-solid fa-triangle-exclamation" /> This field is required
+    </span>
+  );
+}
+
+function FieldRenderer({ field, value, onChange, error }) {
   const placeholder = field.placeholder || '';
+  const errStyle = error ? { borderColor: '#dc2626', background: '#fff5f5' } : {};
 
   switch (field.type) {
     case 'text':
@@ -164,37 +202,56 @@ function FieldRenderer({ field, value, onChange }) {
     case 'number':
       return (
         <div className="field">
-          <label>{field.name}</label>
-          <input type={field.type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+          <FieldLabel field={field} />
+          <input type={field.type} value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={errStyle} />
+          {error && <ErrorMsg />}
         </div>
       );
 
     case 'textarea':
       return (
         <div className="field">
-          <label>{field.name}</label>
-          <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+          <FieldLabel field={field} />
+          <textarea value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={errStyle} />
+          {error && <ErrorMsg />}
         </div>
       );
 
-    case 'date':
+    case 'date': {
+      const minDate = field.validation === 'blockPast' ? new Date() : undefined;
+      const maxDate = field.validation === 'blockFuture' ? new Date() : undefined;
       return (
         <div className="field">
-          <label>{field.name}</label>
+          <FieldLabel field={field} />
           <DatePicker
             selected={value ? new Date(value) : null}
             onChange={(d) => onChange(d ? d.toISOString().split('T')[0] : '')}
             dateFormat="dd MMM yyyy"
             placeholderText={placeholder || 'Select a date'}
             isClearable
+            minDate={minDate}
+            maxDate={maxDate}
+            wrapperClassName={error ? 'dp-error' : ''}
           />
+          {field.validation === 'blockPast' && (
+            <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 3, display: 'block' }}>
+              <i className="fa-solid fa-arrow-right" style={{ marginRight: 4 }} />Today or future dates only
+            </small>
+          )}
+          {field.validation === 'blockFuture' && (
+            <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 3, display: 'block' }}>
+              <i className="fa-solid fa-arrow-left" style={{ marginRight: 4 }} />Today or past dates only
+            </small>
+          )}
+          {error && <ErrorMsg />}
         </div>
       );
+    }
 
     case 'time':
       return (
         <div className="field">
-          <label>{field.name}</label>
+          <FieldLabel field={field} />
           <DatePicker
             selected={value ? new Date(`2000-01-01T${value}`) : null}
             onChange={(d) => onChange(d ? d.toTimeString().slice(0, 5) : '')}
@@ -206,6 +263,7 @@ function FieldRenderer({ field, value, onChange }) {
             placeholderText={placeholder || 'Select a time'}
             isClearable
           />
+          {error && <ErrorMsg />}
         </div>
       );
 
@@ -213,7 +271,7 @@ function FieldRenderer({ field, value, onChange }) {
       const opts = (field.options || []).map((o) => ({ value: o, label: o }));
       return (
         <div className="field">
-          <label>{field.name}</label>
+          <FieldLabel field={field} />
           <Select
             options={opts}
             value={opts.find((o) => o.value === value) || null}
@@ -222,6 +280,7 @@ function FieldRenderer({ field, value, onChange }) {
             isClearable
             styles={rsStyles}
           />
+          {error && <ErrorMsg />}
         </div>
       );
     }
@@ -229,7 +288,7 @@ function FieldRenderer({ field, value, onChange }) {
     case 'toggle':
       return (
         <div className="field" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <label style={{ marginBottom: 0 }}>{field.name}</label>
+          <FieldLabel field={field} />
           <label className="toggle">
             <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
             <span className="toggle-slider" />
@@ -243,8 +302,8 @@ function FieldRenderer({ field, value, onChange }) {
       const toggle = (opt) => onChange(selected.includes(opt) ? selected.filter((v) => v !== opt) : [...selected, opt]);
       return (
         <div className="field">
-          <label>{field.name}</label>
-          <div className="check-group">
+          <FieldLabel field={field} />
+          <div className="check-group" style={error ? { outline: '1px solid #dc2626', borderRadius: 6, padding: 6 } : {}}>
             {options.map((opt) => (
               <label key={opt}>
                 <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
@@ -252,6 +311,7 @@ function FieldRenderer({ field, value, onChange }) {
               </label>
             ))}
           </div>
+          {error && <ErrorMsg />}
         </div>
       );
     }
@@ -259,8 +319,9 @@ function FieldRenderer({ field, value, onChange }) {
     default:
       return (
         <div className="field">
-          <label>{field.name}</label>
-          <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+          <FieldLabel field={field} />
+          <input type="text" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={errStyle} />
+          {error && <ErrorMsg />}
         </div>
       );
   }

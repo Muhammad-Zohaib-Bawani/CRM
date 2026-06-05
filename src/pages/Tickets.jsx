@@ -5,7 +5,8 @@ import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import { getTickets, getTicketById } from '../services/tickets.js';
 import TicketModal from '../components/TicketModal.jsx';
-import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
+import { rsStylesCompact, findOption } from '../utils/selectStyles.js';
+import { STATUSES, STATUS_OPTS, PRIORITY_FILTER_OPTS, TYPE_META } from '../enums/tickets.js';
 
 const IMG_EXT = /\.(jpe?g|png|gif|webp|svg)(\?|$)/i;
 function getFirstImgSrc(attachments) {
@@ -16,10 +17,6 @@ function getFirstImgSrc(attachments) {
   return null;
 }
 
-const TYPE_META = {
-  Bug:  { icon: 'fa-bug',        bg: '#fee2e2', color: '#b91c1c' },
-  Task: { icon: 'fa-list-check', bg: '#dbeafe', color: '#1d4ed8' },
-};
 function TypePill({ type }) {
   const m = TYPE_META[type] || { icon: 'fa-tag', bg: 'var(--brand-soft)', color: 'var(--brand-deep)' };
   return (
@@ -28,15 +25,6 @@ function TypePill({ type }) {
     </span>
   );
 }
-
-const STATUSES = [
-  { key: 'open', label: 'Open' },
-  { key: 'progress', label: 'In Progress' },
-  { key: 'completed', label: 'Completed' },
-];
-
-const STATUS_OPTS = toOptions(STATUSES.map((s) => ({ value: s.key, label: s.label })), 'All statuses');
-const PRIORITY_OPTS = toOptions(['Low', 'Medium', 'High', 'Urgent'], 'All priorities');
 
 export default function Tickets() {
   const { user } = useAuth();
@@ -214,8 +202,8 @@ export default function Tickets() {
 
         <div style={{ minWidth: 148 }}>
           <Select
-            options={PRIORITY_OPTS}
-            value={findOption(PRIORITY_OPTS, filterPriority)}
+            options={PRIORITY_FILTER_OPTS}
+            value={findOption(PRIORITY_FILTER_OPTS, filterPriority)}
             onChange={(opt) => setFilterPriority(opt?.value ?? 'all')}
             placeholder="All priorities"
             isClearable={filterPriority !== 'all'}

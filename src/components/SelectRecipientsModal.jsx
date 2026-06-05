@@ -1,11 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useData } from '../store/DataContext.jsx';
-
-const ROLE_META = {
-  admin: { label: 'Admin', cls: 'type-admin', icon: 'fa-crown' },
-  agent: { label: 'Agent', cls: 'type-agent', icon: 'fa-headset' },
-  user:  { label: 'General User', cls: 'type-user', icon: 'fa-user' },
-};
+import { ROLE_META } from '../enums/roles.js';
 
 function Checkbox({ checked, indeterminate = false, onChange }) {
   const active = checked || indeterminate;

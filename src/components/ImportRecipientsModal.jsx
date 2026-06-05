@@ -1,19 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useData } from '../store/DataContext.jsx';
 import MultiSelect from './MultiSelect.jsx';
-
-const USER_TYPE_OPTIONS = [
-  { value: 'Admin', label: 'Admin' },
-  { value: 'Agent', label: 'Agent' },
-  { value: 'Manager', label: 'Manager' },
-  { value: 'Owner', label: 'Owner' },
-];
-
-const STATUS_OPTIONS = ['Active', 'Inactive', 'Pending', 'Suspended'];
-const GENDER_OPTIONS = [
-  { value: 'Male', label: 'Male' },
-  { value: 'Female', label: 'Female' },
-];
+import { USER_TYPE_OPTIONS, STATUS_OPTIONS, GENDER_OPTIONS } from '../enums/recipients.js';
 
 const EMPTY_FILTERS = {
   userTypes: [],

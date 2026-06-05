@@ -2,27 +2,8 @@ import { useState } from 'react';
 import Select from 'react-select';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
-import { rsStyles, toOptions } from '../utils/selectStyles.js';
-
-const FIELD_TYPES = [
-  { type: 'text', label: 'Free Text', icon: 'fa-font' },
-  { type: 'textarea', label: 'Long Text', icon: 'fa-align-left' },
-  { type: 'toggle', label: 'Toggle (Yes/No)', icon: 'fa-toggle-on' },
-  { type: 'checkbox', label: 'Checkboxes (multi)', icon: 'fa-square-check' },
-  { type: 'date', label: 'Date Picker', icon: 'fa-calendar' },
-  { type: 'time', label: 'Time Picker', icon: 'fa-clock' },
-  { type: 'number', label: 'Number', icon: 'fa-hashtag' },
-  { type: 'email', label: 'Email', icon: 'fa-envelope' },
-  { type: 'select', label: 'Dropdown', icon: 'fa-list' },
-  { type: 'other', label: 'Other (Custom)', icon: 'fa-plus' },
-];
-
-const TYPES_WITH_OPTIONS = ['select', 'checkbox'];
-
-const FIELD_TYPE_OPTS = FIELD_TYPES.map((ft) => ({
-  value: ft.type,
-  label: ft.label,
-}));
+import { rsStyles } from '../utils/selectStyles.js';
+import { FIELD_TYPES, TYPES_WITH_OPTIONS, FIELD_TYPE_OPTS, DATE_VALIDATION_OPTS } from '../enums/forms.js';
 
 export default function FormBuilder({ form, onClose }) {
   const { user } = useAuth();
@@ -43,6 +24,8 @@ export default function FormBuilder({ form, onClose }) {
         placeholder: '',
         type: defaultType,
         sort: fields.length + 1,
+        isRequired: false,
+        validation: '',
         options: TYPES_WITH_OPTIONS.includes(defaultType) ? ['Option 1', 'Option 2'] : undefined,
       },
     });
@@ -138,8 +121,15 @@ export default function FormBuilder({ form, onClose }) {
             fields.map((f, i) => (
               <div className="builder-field" key={f.id}>
                 <div className="meta">
-                  <strong>{f.name || <em style={{ color: 'var(--muted)' }}>Untitled</em>}</strong>
-                  <small>{f.type} · sort {f.sort}{f.placeholder && ` · "${f.placeholder}"`}</small>
+                  <strong>
+                    {f.name || <em style={{ color: 'var(--muted)' }}>Untitled</em>}
+                    {f.isRequired && <span style={{ color: '#dc2626', marginLeft: 4 }}>*</span>}
+                  </strong>
+                  <small>
+                    {f.type} · sort {f.sort}{f.placeholder && ` · "${f.placeholder}"`}
+                    {f.validation === 'blockPast' && <span style={{ marginLeft: 6, color: 'var(--brand-deep)', background: 'var(--brand-soft)', padding: '1px 6px', borderRadius: 4 }}>block past</span>}
+                    {f.validation === 'blockFuture' && <span style={{ marginLeft: 6, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 4 }}>block future</span>}
+                  </small>
                 </div>
                 <div className="actions">
                   <button onClick={() => move(f.id, -1)} disabled={i === 0} title="Move up"><i className="fa-solid fa-arrow-up" /></button>
@@ -163,7 +153,7 @@ export default function FormBuilder({ form, onClose }) {
 }
 
 function FieldModal({ initial, onSave, onClose }) {
-  const [field, setField] = useState(initial);
+  const [field, setField] = useState({ isRequired: false, validation: '', ...initial });
   const [optionsText, setOptionsText] = useState((initial.options || []).join('\n'));
 
   const update = (k, v) => {
@@ -186,6 +176,7 @@ function FieldModal({ initial, onSave, onClose }) {
     } else {
       delete out.options;
     }
+    if (out.type !== 'date') out.validation = '';
     onSave(out);
   };
 
@@ -198,13 +189,29 @@ function FieldModal({ initial, onSave, onClose }) {
         </div>
         <div className="modal-body">
           <div className="field">
-            <label>Field Name</label>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>
+                Field Name
+                {field.isRequired && <span style={{ color: '#dc2626', marginLeft: 3 }}>*</span>}
+              </span>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 400, fontSize: 11, color: 'var(--muted)', cursor: 'pointer', textTransform: 'none', letterSpacing: 0 }}>
+                <input
+                  type="checkbox"
+                  checked={field.isRequired}
+                  onChange={(e) => update('isRequired', e.target.checked)}
+                  style={{ accentColor: 'var(--brand-deep)' }}
+                />
+                Required
+              </label>
+            </label>
             <input type="text" value={field.name} onChange={(e) => update('name', e.target.value)} placeholder="e.g. Horse Name" required />
           </div>
+
           <div className="field">
             <label>Placeholder</label>
-            <input type="text" value={field.placeholder} onChange={(e) => update('placeholder', e.target.value)} placeholder="Hint shown in the empty field" />
+            <input type="text" value={field.placeholder || ''} onChange={(e) => update('placeholder', e.target.value)} placeholder="Hint shown in the empty field" />
           </div>
+
           <div className="field-row">
             <div className="field">
               <label>Field Type</label>
@@ -222,6 +229,32 @@ function FieldModal({ initial, onSave, onClose }) {
               <input type="number" value={field.sort} onChange={(e) => update('sort', Number(e.target.value) || 1)} min={1} />
             </div>
           </div>
+
+          {field.type === 'date' && (
+            <div className="field">
+              <label>Date Validation</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {DATE_VALIDATION_OPTS.map((opt) => (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => update('validation', opt.v)}
+                    className={`btn btn-sm ${field.validation === opt.v ? 'btn-primary' : 'btn-ghost'}`}
+                    style={{ fontSize: 12, flex: 1 }}
+                  >
+                    <i className={`fa-solid ${opt.icon}`} style={{ marginRight: 5 }} />
+                    {opt.l}
+                  </button>
+                ))}
+              </div>
+              <small style={{ color: 'var(--muted)', fontSize: 11, marginTop: 5, display: 'block' }}>
+                {field.validation === 'blockPast' && 'Users can only select today or future dates.'}
+                {field.validation === 'blockFuture' && 'Users can only select today or past dates.'}
+                {field.validation === '' && 'Any date can be selected.'}
+              </small>
+            </div>
+          )}
+
           {TYPES_WITH_OPTIONS.includes(field.type) && (
             <div className="field">
               <label>{field.type === 'select' ? 'Dropdown options' : 'Checkbox options'} (one per line)</label>
@@ -231,6 +264,7 @@ function FieldModal({ initial, onSave, onClose }) {
               </small>
             </div>
           )}
+
           {field.type === 'other' && (
             <div className="field">
               <label>Custom Type Name</label>

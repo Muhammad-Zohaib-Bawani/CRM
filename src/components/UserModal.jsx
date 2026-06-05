@@ -2,8 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Select from 'react-select';
 import { rsStyles } from '../utils/selectStyles.js';
 import { DIAL_OPTS } from '../data/countries.js';
-
-const ROLE_ICONS = { admin: 'fa-crown', agent: 'fa-headset' };
+import { ROLE_ICONS } from '../enums/roles.js';
 
 const EMPTY_FORM = {
   firstName: '',

@@ -12,6 +12,7 @@ function normalizeField(f) {
     sort: f.displayOrder || f.sort || 1,
     isRequired: f.isRequired || false,
     placeholder: f.placeholder || '',
+    validation: f.validation || '',
     options: Array.isArray(options) ? options : [],
   };
 }
@@ -59,8 +60,10 @@ export async function createForm(form) {
     webhookUrl: form.webhookUrl || null,
     fields: (form.fields || []).map((f, i) => ({
       label: f.name,
+      placeholder: f.placeholder || null,
       fieldType: capitalize(f.type),
       isRequired: f.isRequired || false,
+      validation: f.validation || null,
       options: f.options?.length ? f.options : null,
       displayOrder: f.sort || i + 1,
     })),
@@ -76,8 +79,10 @@ export async function updateForm(id, form) {
     isActive: form.isActive !== false,
     fields: (form.fields || []).map((f, i) => ({
       label: f.name,
+      placeholder: f.placeholder || null,
       fieldType: capitalize(f.type),
       isRequired: f.isRequired || false,
+      validation: f.validation || null,
       options: f.options?.length ? f.options : null,
       displayOrder: f.sort || i + 1,
     })),

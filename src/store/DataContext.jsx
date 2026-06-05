@@ -5,10 +5,9 @@ import * as notifApi from '../services/notifications.js';
 import * as formApi from '../services/forms.js';
 import * as userApi from '../services/users.js';
 import { fetchUsers, fetchAgents, fetchManagedUsersAndRoles, fetchContacts } from '../services/data.js';
+import { TICKET_TYPES } from '../enums/tickets.js';
 
 const DataContext = createContext(null);
-
-const TICKET_TYPES = ['Bug', 'Task'];
 
 export function DataProvider({ children }) {
   const { user } = useAuth();

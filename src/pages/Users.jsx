@@ -4,12 +4,8 @@ import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
 import UserModal from '../components/UserModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
+import { ROLE_META } from '../enums/roles.js';
 
-const ROLE_META = {
-  admin: { label: 'Admin', cls: 'type-admin', icon: 'fa-crown' },
-  agent: { label: 'Agent', cls: 'type-agent', icon: 'fa-headset' },
-  user:  { label: 'General User', cls: 'type-user', icon: 'fa-user' },
-};
 
 function SkeletonRow() {
   return (
