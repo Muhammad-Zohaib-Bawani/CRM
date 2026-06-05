@@ -4,6 +4,7 @@ import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import { getTicketById } from '../services/tickets.js';
+import { post } from '../api/client.js';
 import { rsStyles, toOptions } from '../utils/selectStyles.js';
 
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
@@ -11,7 +12,7 @@ const PRIORITY_OPTS = toOptions(PRIORITIES);
 
 export default function TicketModal({ mode, ticket, onClose }) {
   const { user } = useAuth();
-  const { users, agents, ticketTypes, createTicket, updateTicket, assignTicket, updateTicketStatus, addComment } = useData();
+  const { users, agents, ticketTypes, createTicket, updateTicket, assignTicket, updateTicketStatus, addComment, showToast } = useData();
 
   // Fetch full detail (with comments) when viewing an existing ticket
   const [fullTicket, setFullTicket] = useState(ticket);
@@ -45,13 +46,70 @@ export default function TicketModal({ mode, ticket, onClose }) {
   const [submitting, setSubmitting] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [commenting, setCommenting] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
 
   const update = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const uploadAndAdd = async (files) => {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    const otherFiles = files.filter((f) => !f.type.startsWith('image/'));
+
+    if (otherFiles.length) {
+      setForm((p) => ({
+        ...p,
+        attachments: [...(p.attachments || []), ...otherFiles.map((f) => ({ name: f.name, size: f.size, type: f.type }))],
+      }));
+    }
+
+    if (!imageFiles.length) return;
+
+    setUploadingCount((n) => n + imageFiles.length);
+    const results = await Promise.allSettled(
+      imageFiles.map(async (f) => {
+        const base64Image = await fileToBase64(f);
+        return post('/Upload/image', { base64Image, fileName: f.name });
+      })
+    );
+    setUploadingCount((n) => n - imageFiles.length);
+
+    const uploaded = [];
+    results.forEach((r, i) => {
+      const f = imageFiles[i];
+      if (r.status === 'fulfilled') {
+        const raw = r.value;
+        const url = typeof raw === 'string' ? raw : (raw?.url || raw?.fileUrl || null);
+        uploaded.push({ name: f.name, size: f.size, type: f.type, ...(url ? { url } : {}) });
+      } else {
+        showToast(`Failed to upload ${f.name}`, 'fa-triangle-exclamation');
+      }
+    });
+
+    if (uploaded.length) {
+      setForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...uploaded] }));
+    }
+  };
+
   const onFileChange = (e) => {
     const files = Array.from(e.target.files || []);
-    update('attachments', [...(form.attachments || []), ...files.map((f) => ({ name: f.name, size: f.size, type: f.type }))]);
+    uploadAndAdd(files);
     e.target.value = '';
+  };
+
+  const onPaste = (e) => {
+    if (!isCreate && !canEditAll) return;
+    const items = Array.from(e.clipboardData?.items || []);
+    const images = items
+      .filter((it) => it.kind === 'file' && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile())
+      .filter(Boolean);
+    if (images.length) { e.preventDefault(); uploadAndAdd(images); }
   };
 
   const removeAttachment = (idx) => update('attachments', (form.attachments || []).filter((_, i) => i !== idx));
@@ -93,8 +151,15 @@ export default function TicketModal({ mode, ticket, onClose }) {
     if (!commentText.trim()) return;
     setCommenting(true);
     try {
-      await addComment(ticket.id, { authorId: user.id, text: commentText.trim() });
+      const newComment = await addComment(ticket.id, { authorId: user.id, text: commentText.trim() });
       setCommentText('');
+      if (newComment) {
+        setFullTicket((prev) => prev ? {
+          ...prev,
+          comments: [...(prev.comments || []), newComment],
+          commentCount: (prev.commentCount || 0) + 1,
+        } : prev);
+      }
     } finally {
       setCommenting(false);
     }
@@ -110,7 +175,7 @@ export default function TicketModal({ mode, ticket, onClose }) {
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal wide" onClick={(e) => e.stopPropagation()}>
+      <div className="modal wide" onClick={(e) => e.stopPropagation()} onPaste={onPaste}>
         <div className="modal-head">
           <div>
             <h2>{isCreate ? 'Create Ticket' : t.title}</h2>
@@ -202,20 +267,33 @@ export default function TicketModal({ mode, ticket, onClose }) {
 
                 <div className="field">
                   <label>Attachments</label>
-                  <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
-                    <i className="fa-solid fa-paperclip" /> Add files
-                    <input type="file" multiple onChange={onFileChange} style={{ display: 'none' }} />
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <label className="btn btn-ghost btn-sm" style={{ cursor: 'pointer' }}>
+                      <i className="fa-solid fa-paperclip" /> Add files
+                      <input type="file" multiple accept="*/*" onChange={onFileChange} style={{ display: 'none' }} />
+                    </label>
+                    {uploadingCount > 0
+                      ? <span style={{ fontSize: 11, color: 'var(--brand-deep)' }}>
+                          <i className="fa-solid fa-circle-notch fa-spin" style={{ marginRight: 5 }} />
+                          Uploading {uploadingCount} image{uploadingCount > 1 ? 's' : ''}…
+                        </span>
+                      : <span style={{ fontSize: 11, color: 'var(--muted)' }}>or paste image anywhere</span>}
+                  </div>
                   {(form.attachments || []).length > 0 && (
                     <div className="attachment-list">
-                      {form.attachments.map((a, i) => (
-                        <div className="attachment-chip" key={i}>
-                          <i className="fa-solid fa-file" />
-                          {a.name}
-                          <span style={{ opacity: 0.6, fontSize: 11 }}>{(a.size / 1024).toFixed(1)} KB</span>
-                          <i className="fa-solid fa-xmark" onClick={() => removeAttachment(i)} />
-                        </div>
-                      ))}
+                      {form.attachments.map((a, i) => {
+                        const imgSrc = a.url && a.type?.startsWith('image/') ? a.url : (a.preview || null);
+                        return (
+                          <div className={`attachment-chip${imgSrc ? ' has-img' : ''}`} key={i}>
+                            {imgSrc
+                              ? <img src={imgSrc} alt={a.name} className="chip-img-thumb" />
+                              : <i className="fa-solid fa-file" />}
+                            {a.name}
+                            <span style={{ opacity: 0.6, fontSize: 11 }}>{(a.size / 1024).toFixed(1)} KB</span>
+                            <i className="fa-solid fa-xmark" onClick={() => removeAttachment(i)} />
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -233,13 +311,18 @@ export default function TicketModal({ mode, ticket, onClose }) {
                   <div style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: 8 }}>Attachments</div>
                     <div className="attachment-list">
-                      {t.attachments.map((a, i) => (
-                        <div className="attachment-chip" key={i}>
-                          <i className="fa-solid fa-file" />
-                          {a.name}
-                          <span style={{ opacity: 0.6, fontSize: 11 }}>{a.size ? (a.size / 1024).toFixed(1) + ' KB' : ''}</span>
-                        </div>
-                      ))}
+                      {t.attachments.map((a, i) => {
+                        const imgSrc = a.url && a.type?.startsWith('image/') ? a.url : (a.preview || null);
+                        return (
+                          <div className={`attachment-chip${imgSrc ? ' has-img' : ''}`} key={i}>
+                            {imgSrc
+                              ? <img src={imgSrc} alt={a.name} className="chip-img-thumb" />
+                              : <i className="fa-solid fa-file" />}
+                            {a.name}
+                            <span style={{ opacity: 0.6, fontSize: 11 }}>{a.size ? (a.size / 1024).toFixed(1) + ' KB' : ''}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

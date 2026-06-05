@@ -70,3 +70,34 @@ export const get = (path, opts) => request('GET', path, undefined, opts);
 export const post = (path, data, opts) => request('POST', path, data, opts);
 export const put = (path, data, opts) => request('PUT', path, data, opts);
 export const del = (path, opts) => request('DELETE', path, undefined, opts);
+
+export async function upload(path, file, fieldName = 'file') {
+  const makeReq = (token) => {
+    const fd = new FormData();
+    fd.append(fieldName, file);
+    const h = {};
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return fetch(`${BASE}${path}`, { method: 'POST', headers: h, body: fd });
+  };
+
+  let res = await makeReq(tokenStore.get());
+
+  if (res.status === 401 ) {
+    if (!refreshing) refreshing = doRefresh().finally(() => { refreshing = null; });
+    try {
+      res = await makeReq(await refreshing);
+    } catch {
+      throw new Error('Session expired. Please log in again.');
+    }
+  }
+
+  const json = res.headers.get('content-type')?.includes('json') ? await res.json() : null;
+  if (!res.ok) {
+    const msg = json?.message || json?.title || `Upload failed (${res.status})`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = json;
+    throw err;
+  }
+  return json?.data !== undefined ? json.data : json;
+}

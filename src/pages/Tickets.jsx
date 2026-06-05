@@ -7,6 +7,14 @@ import { getTickets, getTicketById } from '../services/tickets.js';
 import TicketModal from '../components/TicketModal.jsx';
 import { rsStylesCompact, toOptions, findOption } from '../utils/selectStyles.js';
 
+function getFirstImgSrc(attachments) {
+  for (const a of (attachments || [])) {
+    if (a.preview) return a.preview;
+    if (a.type?.startsWith('image/') && a.url) return a.url;
+  }
+  return null;
+}
+
 const TYPE_META = {
   Bug:  { icon: 'fa-bug',        bg: '#fee2e2', color: '#b91c1c' },
   Task: { icon: 'fa-list-check', bg: '#dbeafe', color: '#1d4ed8' },
@@ -321,7 +329,7 @@ export default function Tickets() {
                     </td>
                     <td><TypePill type={t.type} /></td>
                     <td><span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span></td>
-                    <td>{a ? a.name : <em style={{ color: 'var(--muted)' }}>Unassigned</em>}</td>
+                    <td>{a ? a.name : t.assignedToName ? t.assignedToName : <em style={{ color: 'var(--muted)' }}>Unassigned</em>}</td>
                     <td style={{ color: overdue ? '#b91c1c' : 'var(--muted)', fontSize: 12, fontWeight: overdue ? 600 : 400 }}>
                       {fmtDate(t.dueDate)}
                       {overdue && <i className="fa-solid fa-triangle-exclamation" style={{ marginLeft: 4 }} />}
@@ -339,8 +347,14 @@ export default function Tickets() {
           {filtered.map((t) => {
             const a = userById(t.assignedTo);
             const overdue = isOverdue(t);
+            const coverImg = getFirstImgSrc(t.attachments);
             return (
               <div key={t.id} className="ticket-card" onClick={() => openView(t)}>
+                {coverImg && (
+                  <div className="card-cover-img">
+                    <img src={coverImg} alt="attachment preview" />
+                  </div>
+                )}
                 <div className="head">
                   <span className="tid">{t.ticketNumber || t.id}</span>
                   <span className={`badge badge-${t.status}`}>{statusLabel(t.status)}</span>
@@ -363,7 +377,11 @@ export default function Tickets() {
                 </div>
                 <div className="meta">
                   <span className="assignee">
-                    {a ? <><span className="mini-avatar">{a.initials}</span> {a.name}</> : <em>Unassigned</em>}
+                    {a
+                      ? <><span className="mini-avatar">{a.initials}</span> {a.name}</>
+                      : t.assignedToName
+                        ? t.assignedToName
+                        : <em>Unassigned</em>}
                   </span>
                   <span>{fmtDate(t.createdAt)}</span>
                 </div>
@@ -393,6 +411,7 @@ export default function Tickets() {
                   const a = userById(t.assignedTo);
                   const overdue = isOverdue(t);
                   const canDrag = user.role === 'admin' || (user.role === 'agent' && t.assignedTo === user.id);
+                  const coverImg = getFirstImgSrc(t.attachments);
                   return (
                     <div
                       key={t.id}
@@ -403,6 +422,11 @@ export default function Tickets() {
                       onClick={() => openView(t)}
                       style={{ cursor: canDrag ? 'grab' : 'pointer' }}
                     >
+                      {coverImg && (
+                        <div className="kanban-card-img">
+                          <img src={coverImg} alt="attachment preview" />
+                        </div>
+                      )}
                       <div className="tid">{t.ticketNumber || t.id}</div>
                       <div className="title">{t.title}</div>
                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -411,7 +435,11 @@ export default function Tickets() {
                       </div>
                       <div className="foot">
                         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-                          {a ? <><span className="mini-avatar" style={{ display: 'inline-grid', verticalAlign: 'middle', marginRight: 4 }}>{a.initials}</span>{a.name.split(' ')[0]}</> : 'Unassigned'}
+                          {a
+                            ? <><span className="mini-avatar" style={{ display: 'inline-grid', verticalAlign: 'middle', marginRight: 4 }}>{a.initials}</span>{a.name.split(' ')[0]}</>
+                            : t.assignedToName
+                              ? t.assignedToName.split(' ')[0]
+                              : 'Unassigned'}
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--muted)', display: 'flex', gap: 8, alignItems: 'center' }}>
                           {t.dueDate && (
