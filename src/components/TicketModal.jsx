@@ -191,7 +191,7 @@ export default function TicketModal({ mode, ticket, onClose }) {
 
   const author = t.createdBy ? (users.find((u) => u.id === t.createdBy) || (t.createdBy === user.id ? user : null)) : null;
   const assignee = t.assignedTo ? (users.find((u) => u.id === t.assignedTo) || (t.assignedTo === user.id ? user : null)) : null;
-  const isOverdue = !isCreate && t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < new Date();
+  const isOverdue = !isCreate && t.dueDate && t.status !== 'completed' && t.status !== 'resolved' && new Date(t.dueDate) < new Date();
 
   return (
     <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
@@ -352,8 +352,8 @@ export default function TicketModal({ mode, ticket, onClose }) {
             {!isCreate && canChangeStatus && (
               <div className="field">
                 <label>Status</label>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {[{ v: 'open', l: 'Open' }, { v: 'progress', l: 'In Progress' }, { v: 'completed', l: 'Completed' }].map((s) => (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {[{ v: 'open', l: 'Open' }, { v: 'progress', l: 'In Progress' }, { v: 'completed', l: 'Completed' }, { v: 'resolved', l: 'Resolved' }].map((s) => (
                     <button key={s.v} type="button" onClick={() => handleStatus(s.v)} className={`btn btn-sm ${t.status === s.v ? 'btn-primary' : 'btn-ghost'}`}>
                       {s.l}
                     </button>
@@ -377,6 +377,10 @@ export default function TicketModal({ mode, ticket, onClose }) {
                   isDisabled={assigning}
                 />
               </div>
+            )}
+
+            {!isCreate && (fullTicket?.activities || []).length > 0 && (
+              <ActivityLog activities={fullTicket.activities} />
             )}
 
             {!isCreate && (
@@ -448,6 +452,57 @@ function InfoRow({ label, value }) {
     <div>
       <div style={{ fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 600, marginBottom: 3 }}>{label}</div>
       <div style={{ fontSize: 14, color: 'var(--ink)' }}>{value}</div>
+    </div>
+  );
+}
+
+const ACTIVITY_ICONS = {
+  created: 'fa-plus-circle',
+  status_changed: 'fa-arrows-rotate',
+  priority_changed: 'fa-flag',
+  type_changed: 'fa-tag',
+  due_date_changed: 'fa-calendar',
+  assigned_to_changed: 'fa-user',
+};
+
+function activityText(a) {
+  const who = a.performedByName || 'Someone';
+  switch (a.activityType) {
+    case 'created': return `${who} created this ticket`;
+    case 'status_changed': return `${who} changed status from "${a.oldValue}" to "${a.newValue}"`;
+    case 'priority_changed': return `${who} changed priority from "${a.oldValue}" to "${a.newValue}"`;
+    case 'type_changed': return `${who} changed type from "${a.oldValue}" to "${a.newValue}"`;
+    case 'due_date_changed': return `${who} changed due date from "${a.oldValue || 'none'}" to "${a.newValue}"`;
+    case 'assigned_to_changed': return `${who} reassigned from "${a.oldValue}" to "${a.newValue}"`;
+    default: return `${who} updated ${a.field || 'ticket'}`;
+  }
+}
+
+function ActivityLog({ activities }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <h3 style={{ fontSize: 12, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 12 }}>
+        Activity · {activities.length}
+      </h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative' }}>
+        <div style={{ position: 'absolute', left: 11, top: 0, bottom: 0, width: 2, background: 'var(--line)', borderRadius: 2 }} />
+        {activities.map((a) => (
+          <div key={a.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', paddingBottom: 14, position: 'relative' }}>
+            <div style={{
+              width: 24, height: 24, borderRadius: '50%',
+              background: 'var(--brand-soft)', color: 'var(--brand-deep)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 11, flexShrink: 0, zIndex: 1, border: '2px solid #fff',
+            }}>
+              <i className={`fa-solid ${ACTIVITY_ICONS[a.activityType] || 'fa-circle-dot'}`} />
+            </div>
+            <div style={{ paddingTop: 2 }}>
+              <div style={{ fontSize: 13, color: 'var(--ink)' }}>{activityText(a)}</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{new Date(a.createdAt).toLocaleString()}</div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

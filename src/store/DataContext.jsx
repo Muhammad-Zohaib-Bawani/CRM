@@ -294,5 +294,5 @@ export function useData() {
 }
 
 export function statusLabel(status) {
-  return { open: 'Open', progress: 'In Progress', completed: 'Completed' }[status] || status;
+  return { open: 'Open', progress: 'In Progress', completed: 'Completed', resolved: 'Resolved' }[status] || status;
 }

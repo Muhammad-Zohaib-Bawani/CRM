@@ -29,6 +29,16 @@ function normalizeTicket(t) {
     })),
     commentCount: t.commentCount || (t.comments?.length ?? 0),
     attachmentCount: t.attachmentCount || (t.attachments?.length ?? 0),
+    activities: (t.activities || []).map((a) => ({
+      id: a.id,
+      activityType: a.activityType,
+      field: a.field,
+      oldValue: a.oldValue,
+      newValue: a.newValue,
+      performedById: a.performedById,
+      performedByName: a.performedByName,
+      createdAt: a.createdAt,
+    })),
     createdAt: t.createdAt,
     updatedAt: t.updatedAt || t.createdAt,
   };
@@ -107,4 +117,18 @@ export async function addAttachment(ticketId, { fileName, fileUrl, fileSize }) {
 
 export async function deleteAttachment(ticketId, attachmentId) {
   return del(`/tickets/${ticketId}/attachments/${attachmentId}`);
+}
+
+export async function getTicketActivities(ticketId) {
+  const data = await get(`/tickets/${ticketId}/activities`);
+  return (Array.isArray(data) ? data : []).map((a) => ({
+    id: a.id,
+    activityType: a.activityType,
+    field: a.field,
+    oldValue: a.oldValue,
+    newValue: a.newValue,
+    performedById: a.performedById,
+    performedByName: a.performedByName,
+    createdAt: a.createdAt,
+  }));
 }

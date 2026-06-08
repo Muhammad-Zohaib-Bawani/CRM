@@ -40,6 +40,8 @@
   --status-progress-soft: #fef3c7;
   --status-completed: #16a34a;
   --status-completed-soft: #dcfce7;
+  --status-resolved: #7c3aed;
+  --status-resolved-soft: #ede9fe;
 
   --priority-low: #6b7280;
   --priority-medium: #d97706;
@@ -475,6 +477,13 @@ select {
 .stat-card.stat-completed .icon {
   background: var(--status-completed-soft);
   color: var(--status-completed);
+}
+.stat-card.stat-resolved {
+  border-left-color: var(--status-resolved);
+}
+.stat-card.stat-resolved .icon {
+  background: var(--status-resolved-soft);
+  color: var(--status-resolved);
 }
 .stat-card.stat-overdue {
   border-left-color: #dc2626;
@@ -1180,6 +1189,10 @@ select {
   background: var(--status-completed-soft);
   color: var(--status-completed);
 }
+.badge-resolved {
+  background: var(--status-resolved-soft);
+  color: var(--status-resolved);
+}
 .badge-pri-low {
   background: #f3f4f6;
   color: var(--priority-low);
@@ -1408,7 +1421,7 @@ select {
 /* ============= KANBAN ============= */
 .kanban {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -1447,6 +1460,9 @@ select {
 }
 .kanban-col.col-completed h3 {
   border-color: var(--status-completed);
+}
+.kanban-col.col-resolved h3 {
+  border-color: var(--status-resolved);
 }
 .kanban-col h3 .count {
   background: #fff;

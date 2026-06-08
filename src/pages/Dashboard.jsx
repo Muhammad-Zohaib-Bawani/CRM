@@ -52,8 +52,9 @@ export default function Dashboard() {
       open:      scopedTickets.filter((t) => t.status === 'open').length,
       progress:  scopedTickets.filter((t) => t.status === 'progress').length,
       completed: scopedTickets.filter((t) => t.status === 'completed').length,
+      resolved:  scopedTickets.filter((t) => t.status === 'resolved').length,
       overdue:   scopedTickets.filter(
-        (t) => t.dueDate && t.status !== 'completed' && new Date(t.dueDate) < now,
+        (t) => t.dueDate && t.status !== 'completed' && t.status !== 'resolved' && new Date(t.dueDate) < now,
       ).length,
     };
     if (!isAdmin) return base;
@@ -71,9 +72,10 @@ export default function Dashboard() {
   );
 
   const chartData = [
-    { label: 'Open',       value: counts.open,      color: 'var(--status-open)' },
+    { label: 'Open',        value: counts.open,      color: 'var(--status-open)' },
     { label: 'In Progress', value: counts.progress,  color: 'var(--status-progress)' },
-    { label: 'Completed',  value: counts.completed,  color: 'var(--status-completed)' },
+    { label: 'Completed',   value: counts.completed, color: 'var(--status-completed)' },
+    { label: 'Resolved',    value: counts.resolved,  color: 'var(--status-resolved)' },
   ];
 
   const userById = (id) => users.find((u) => u.id === id) || (id === user.id ? user : null);
@@ -110,12 +112,13 @@ export default function Dashboard() {
         <DashboardSkeleton role={user.role} />
       ) : (
         <>
-          {/* Row 1 — ticket stats (always 5) */}
-          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+          {/* Row 1 — ticket stats */}
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
             <StatCard label="Total Tickets" value={counts.total}     icon="fa-ticket" />
             <StatCard label="Open"          value={counts.open}      icon="fa-folder-open"          variant="open" />
             <StatCard label="In Progress"   value={counts.progress}  icon="fa-spinner"              variant="progress" />
             <StatCard label="Completed"     value={counts.completed} icon="fa-circle-check"         variant="completed" />
+            <StatCard label="Resolved"      value={counts.resolved}  icon="fa-check-double"         variant="resolved" />
             <StatCard label="Overdue"       value={counts.overdue}   icon="fa-triangle-exclamation" variant="overdue" />
           </div>
 

@@ -10,6 +10,7 @@ export const STATUSES = [
   { key: 'open',      label: 'Open'        },
   { key: 'progress',  label: 'In Progress' },
   { key: 'completed', label: 'Completed'   },
+  { key: 'resolved',  label: 'Resolved'    },
 ];
 export const STATUS_OPTS = toOptions(
   STATUSES.map((s) => ({ value: s.key, label: s.label })),
@@ -21,5 +22,5 @@ export const TYPE_META = {
   Task: { icon: 'fa-list-check', bg: '#dbeafe', color: '#1d4ed8' },
 };
 
-export const STATUS_FROM_BACKEND = { Open: 'open', InProgress: 'progress', Completed: 'completed' };
-export const STATUS_TO_BACKEND   = { open: 'Open', progress: 'InProgress', completed: 'Completed' };
+export const STATUS_FROM_BACKEND = { Open: 'open', InProgress: 'progress', Completed: 'completed', Resolved: 'resolved' };
+export const STATUS_TO_BACKEND   = { open: 'Open', progress: 'InProgress', completed: 'Completed', resolved: 'Resolved' };
