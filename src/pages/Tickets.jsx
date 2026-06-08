@@ -5,7 +5,7 @@ import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import { getTickets, getTicketById } from '../services/tickets.js';
 import TicketModal from '../components/TicketModal.jsx';
-import { rsStylesCompact, findOption } from '../utils/selectStyles.js';
+import { rsStylesCompact, findOption, toOptions } from '../utils/selectStyles.js';
 import { STATUSES, STATUS_OPTS, PRIORITY_FILTER_OPTS, TYPE_META } from '../enums/tickets.js';
 
 const IMG_EXT = /\.(jpe?g|png|gif|webp|svg)(\?|$)/i;
