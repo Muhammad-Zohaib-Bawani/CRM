@@ -5,7 +5,7 @@ import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import { getTicketById, addAttachment as addAttachmentApi, deleteAttachment as deleteAttachmentApi } from '../services/tickets.js';
 import { post } from '../api/client.js';
-import { rsStyles } from '../utils/selectStyles.js';
+import { rsStyles, toOptions } from '../utils/selectStyles.js';
 import { PRIORITIES, PRIORITY_OPTS } from '../enums/tickets.js';
 
 export default function TicketModal({ mode, ticket, onClose }) {
