@@ -413,7 +413,12 @@ export default function Tickets() {
                     >
                       {coverImg && (
                         <div className="kanban-card-img">
-                          <img src={coverImg} alt="attachment preview" />
+                          <img
+                            src={coverImg}
+                            alt="attachment preview"
+                            style={{ cursor: 'zoom-in' }}
+                            onClick={(e) => { e.stopPropagation(); window.open(coverImg, '_blank', 'noopener,noreferrer'); }}
+                          />
                         </div>
                       )}
                       <div className="tid">{t.ticketNumber || t.id}</div>

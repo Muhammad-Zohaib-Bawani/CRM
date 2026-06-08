@@ -225,7 +225,11 @@ function FieldRenderer({ field, value, onChange, error }) {
           <FieldLabel field={field} />
           <DatePicker
             selected={value ? new Date(value) : null}
-            onChange={(d) => onChange(d ? d.toISOString().split('T')[0] : '')}
+            onChange={(d) => onChange(d ? [
+              d.getFullYear(),
+              String(d.getMonth() + 1).padStart(2, '0'),
+              String(d.getDate()).padStart(2, '0'),
+            ].join('-') : '')}
             dateFormat="dd MMM yyyy"
             placeholderText={placeholder || 'Select a date'}
             isClearable

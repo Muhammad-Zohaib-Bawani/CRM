@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import DatePicker from "react-datepicker";
 import {
   getFormCampaigns,
   getFormCampaignResponses,
@@ -157,6 +158,43 @@ export default function FormTracking() {
     };
   }, []);
 
+  const PAGE_SIZE = 10;
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
+  const [page, setPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    return campaigns.filter((c) => {
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        if (
+          !c.subject.toLowerCase().includes(q) &&
+          !(c.formName || "").toLowerCase().includes(q)
+        )
+          return false;
+      }
+      if (dateFrom) {
+        const sent = new Date(c.sentAt).getTime();
+        if (sent < new Date(dateFrom).setHours(0, 0, 0, 0)) return false;
+      }
+      if (dateTo) {
+        const sent = new Date(c.sentAt).getTime();
+        if (sent > new Date(dateTo).setHours(23, 59, 59, 999)) return false;
+      }
+      return true;
+    });
+  }, [campaigns, search, dateFrom, dateTo]);
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setPage(1); }, [search, dateFrom, dateTo]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  );
+
   const [expandedId, setExpandedId] = useState(null);
   const [responseModal, setResponseModal] = useState(null);
   const [allResponsesModal, setAllResponsesModal] = useState(null); // { notif, form }
@@ -283,10 +321,108 @@ export default function FormTracking() {
           <div className="sub">
             {loading
               ? "Loading…"
-              : `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} with forms attached`}
+              : filtered.length === campaigns.length
+                ? `${campaigns.length} campaign${campaigns.length === 1 ? "" : "s"} with forms attached`
+                : `${filtered.length} of ${campaigns.length} campaigns`}
+            {!loading && filtered.length > PAGE_SIZE && (
+              <span style={{ marginLeft: 8, color: "var(--brand-deep)" }}>
+                · page {page} of {totalPages}
+              </span>
+            )}
           </div>
         </div>
       </div>
+
+      {!loading && campaigns.length > 0 && (
+        <div className="filter-bar">
+          <div className="search">
+            <i className="fa-solid fa-magnifying-glass" />
+            <input
+              type="text"
+              placeholder="Search by subject or form name…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "0 4px",
+              borderLeft: "1px solid var(--line)",
+            }}
+          >
+            <span
+              style={{
+                fontSize: 11,
+                color: "var(--muted)",
+                fontWeight: 600,
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+              }}
+            >
+              Sent
+            </span>
+            <div className="dp-compact" style={{ width: 130 }}>
+              <DatePicker
+                selected={dateFrom}
+                onChange={setDateFrom}
+                selectsStart
+                startDate={dateFrom}
+                endDate={dateTo}
+                dateFormat="dd MMM yyyy"
+                placeholderText="From"
+                isClearable
+              />
+            </div>
+            <span style={{ color: "var(--muted)", fontSize: 12 }}>→</span>
+            <div className="dp-compact" style={{ width: 130 }}>
+              <DatePicker
+                selected={dateTo}
+                onChange={setDateTo}
+                selectsEnd
+                startDate={dateFrom}
+                endDate={dateTo}
+                minDate={dateFrom}
+                dateFormat="dd MMM yyyy"
+                placeholderText="To"
+                isClearable
+              />
+            </div>
+            {(dateFrom || dateTo) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFrom(null);
+                  setDateTo(null);
+                }}
+                style={{
+                  color: "var(--muted)",
+                  fontSize: 12,
+                  padding: "4px 6px",
+                }}
+                title="Clear date filter"
+              >
+                <i className="fa-solid fa-xmark" />
+              </button>
+            )}
+          </div>
+          {(search || dateFrom || dateTo) && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setSearch("");
+                setDateFrom(null);
+                setDateTo(null);
+              }}
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="ft-list">
@@ -317,9 +453,25 @@ export default function FormTracking() {
             trackable here.
           </div>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="empty-state">
+          <i className="fa-solid fa-magnifying-glass" />
+          <h3>No campaigns match your filters</h3>
+          <p>Try adjusting the search term or date range.</p>
+          <button
+            className="btn btn-ghost"
+            onClick={() => {
+              setSearch("");
+              setDateFrom(null);
+              setDateTo(null);
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       ) : (
         <div className="ft-list">
-          {campaigns.map((notif) => {
+          {paginated.map((notif) => {
             const { total, completed, pending } = statsFor(notif);
             const isOpen = expandedId === notif.id;
             const isLoadingResponses = loadingForms.has(notif.formCampaignId);
@@ -640,6 +792,10 @@ export default function FormTracking() {
         </div>
       )}
 
+      {!loading && totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} />
+      )}
+
       {responseModal && (
         <ResponseModal
           notif={responseModal.notif}
@@ -661,12 +817,70 @@ export default function FormTracking() {
   );
 }
 
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+function Pagination({ page, totalPages, onChange, total, pageSize }) {
+  const from = (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+
+  // Build page numbers: always show first, last, current ±1, with ellipsis gaps
+  const pages = [];
+  for (let p = 1; p <= totalPages; p++) {
+    if (p === 1 || p === totalPages || (p >= page - 1 && p <= page + 1)) {
+      pages.push(p);
+    } else if (pages[pages.length - 1] !== "…") {
+      pages.push("…");
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", marginTop: 4 }}>
+      <span style={{ fontSize: 12, color: "var(--muted)" }}>
+        Showing {from}–{to} of {total}
+      </span>
+      <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => onChange(page - 1)}
+          disabled={page === 1}
+          style={{ padding: "5px 10px" }}
+        >
+          <i className="fa-solid fa-chevron-left" />
+        </button>
+        {pages.map((p, i) =>
+          p === "…" ? (
+            <span key={`ellipsis-${i}`} style={{ padding: "0 6px", color: "var(--muted)", fontSize: 13 }}>…</span>
+          ) : (
+            <button
+              key={p}
+              className={`btn btn-sm ${p === page ? "btn-primary" : "btn-ghost"}`}
+              onClick={() => onChange(p)}
+              style={{ minWidth: 32, padding: "5px 8px" }}
+            >
+              {p}
+            </button>
+          )
+        )}
+        <button
+          className="btn btn-ghost btn-sm"
+          onClick={() => onChange(page + 1)}
+          disabled={page === totalPages}
+          style={{ padding: "5px 10px" }}
+        >
+          <i className="fa-solid fa-chevron-right" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── All responses listing modal ───────────────────────────────────────────────
 
 function AllResponsesModal({ notif, form, onClose }) {
   const [responses, setResponses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!notif.formCampaignId) {
@@ -692,18 +906,32 @@ function AllResponsesModal({ notif, form, onClose }) {
   }, [notif.formCampaignId]);
 
   const fieldLabels = useMemo(() => {
-    if (form?.fields?.length) {
-      return form.fields
-        .slice()
-        .sort((a, b) => (a.sort || 0) - (b.sort || 0))
-        .map((f) => f.name);
-    }
+    // Derive column order from the first response's values array.
+    // The backend guarantees values are sorted by FormField.DisplayOrder,
+    // so the first response's order is the canonical field order.
+    const labelsFromFirstResponse = (responses[0]?.values || []).map(
+      (v) => v.fieldLabel,
+    );
+    if (labelsFromFirstResponse.length) return labelsFromFirstResponse;
+    // Fallback: collect from all responses preserving insertion order (same guarantee applies)
     const seen = new Set();
     responses.forEach((r) =>
       (r.values || []).forEach((v) => seen.add(v.fieldLabel)),
     );
     return [...seen];
-  }, [form, responses]);
+  }, [responses]);
+
+  const visibleResponses = useMemo(() => {
+    if (!search.trim()) return responses;
+    const q = search.toLowerCase();
+    return responses.filter((r) => {
+      if ((r.submittedByName || "").toLowerCase().includes(q)) return true;
+      if ((r.submittedByEmail || "").toLowerCase().includes(q)) return true;
+      return (r.values || []).some((v) =>
+        (v.value || "").toLowerCase().includes(q),
+      );
+    });
+  }, [responses, search]);
 
   const handleExport = async () => {
     if (!notif.formCampaignId) return;
@@ -750,6 +978,28 @@ function AllResponsesModal({ notif, form, onClose }) {
           <i className="fa-solid fa-xmark close" onClick={onClose} />
         </div>
 
+        {!loading && responses.length > 0 && (
+          <div style={{ padding: "10px 20px", borderBottom: "1px solid var(--line)", background: "var(--surface)" }}>
+            <div className="filter-bar" style={{ margin: 0, padding: 0, background: "transparent", backdropFilter: "none", boxShadow: "none", border: "none" }}>
+              <div className="search" style={{ flex: 1 }}>
+                <i className="fa-solid fa-magnifying-glass" />
+                <input
+                  type="text"
+                  placeholder="Search by name, email, or any field value…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              {search && (
+                <span style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                  {visibleResponses.length} of {responses.length}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
         <div
           className="modal-body"
           style={{ padding: 0, maxHeight: "60vh", overflowY: "auto" }}
@@ -792,26 +1042,43 @@ function AllResponsesModal({ notif, form, onClose }) {
               />
               No responses submitted yet.
             </div>
+          ) : visibleResponses.length === 0 ? (
+            <div style={{ padding: "40px", textAlign: "center", color: "var(--muted)", fontSize: 13 }}>
+              <i className="fa-solid fa-magnifying-glass" style={{ fontSize: 28, display: "block", marginBottom: 12 }} />
+              No responses match "{search}".
+            </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table className="ft-table" style={{ minWidth: 600 }}>
                 <thead>
                   <tr>
                     <th style={{ width: 36 }}>#</th>
-                    <th>Submitted By</th>
-                    <th>Email</th>
-                    <th>Submitted At</th>
                     {fieldLabels.map((label) => (
                       <th key={label}>{label}</th>
                     ))}
+                    <th>Submitted By</th>
+                    <th>Email</th>
+                    <th>Submitted At</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {responses.map((r, idx) => (
+                  {visibleResponses.map((r, idx) => (
                     <tr key={r.id}>
                       <td style={{ color: "var(--muted)", fontSize: 12 }}>
                         {idx + 1}
                       </td>
+                      {fieldLabels.map((label) => {
+                        const val = (r.values || []).find(
+                          (v) => v.fieldLabel === label,
+                        );
+                        return (
+                          <td key={label} style={{ fontSize: 13 }}>
+                            {val?.value || (
+                              <em style={{ color: "var(--muted)" }}>—</em>
+                            )}
+                          </td>
+                        );
+                      })}
                       <td style={{ fontWeight: 600, color: "var(--ink)" }}>
                         {r.submittedByName || "—"}
                       </td>
@@ -827,18 +1094,6 @@ function AllResponsesModal({ notif, form, onClose }) {
                       <td style={{ fontSize: 12, color: "var(--muted)" }}>
                         {fmtDateTime(r.submittedAt)}
                       </td>
-                      {fieldLabels.map((label) => {
-                        const val = (r.values || []).find(
-                          (v) => v.fieldLabel === label,
-                        );
-                        return (
-                          <td key={label} style={{ fontSize: 13 }}>
-                            {val?.value || (
-                              <em style={{ color: "var(--muted)" }}>—</em>
-                            )}
-                          </td>
-                        );
-                      })}
                     </tr>
                   ))}
                 </tbody>

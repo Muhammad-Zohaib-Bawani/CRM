@@ -139,7 +139,11 @@ export default function TicketModal({ mode, ticket, onClose }) {
     if (!form.title.trim()) { alert('Title is required'); return; }
     const payload = {
       ...form,
-      dueDate: form.dueDate ? form.dueDate.toISOString().split('T')[0] : '',
+      dueDate: form.dueDate ? [
+        form.dueDate.getFullYear(),
+        String(form.dueDate.getMonth() + 1).padStart(2, '0'),
+        String(form.dueDate.getDate()).padStart(2, '0'),
+      ].join('-') : '',
     };
     setSubmitting(true);
     try {
@@ -306,7 +310,7 @@ export default function TicketModal({ mode, ticket, onClose }) {
                         return (
                           <div className={`attachment-chip${imgSrc ? ' has-img' : ''}`} key={i}>
                             {imgSrc
-                              ? <img src={imgSrc} alt={a.name} className="chip-img-thumb" />
+                              ? <a href={imgSrc} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><img src={imgSrc} alt={a.name} className="chip-img-thumb" style={{ cursor: 'zoom-in' }} /></a>
                               : <i className="fa-solid fa-file" />}
                             {a.name}
                             <span style={{ opacity: 0.6, fontSize: 11 }}>{(a.size / 1024).toFixed(1)} KB</span>
@@ -336,7 +340,7 @@ export default function TicketModal({ mode, ticket, onClose }) {
                         return (
                           <div className={`attachment-chip${imgSrc ? ' has-img' : ''}`} key={i}>
                             {imgSrc
-                              ? <img src={imgSrc} alt={a.name} className="chip-img-thumb" />
+                              ? <a href={imgSrc} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}><img src={imgSrc} alt={a.name} className="chip-img-thumb" style={{ cursor: 'zoom-in' }} /></a>
                               : <i className="fa-solid fa-file" />}
                             {a.name}
                             <span style={{ opacity: 0.6, fontSize: 11 }}>{a.size ? (a.size / 1024).toFixed(1) + ' KB' : ''}</span>
