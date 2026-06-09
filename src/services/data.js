@@ -15,6 +15,8 @@ const settle = (r, fallback = []) => r.status === 'fulfilled' ? r.value : fallba
 export async function fetchCoreData() {
   const [ticketData, notifData, formData] = await Promise.allSettled([
     getTickets({ pageSize: 200 }),
+    getNotifications(),
+    getForms(),
   ]);
   const formList = settle(formData);
   const formMap = new Map(formList.map((f) => [f.id, f.name]));

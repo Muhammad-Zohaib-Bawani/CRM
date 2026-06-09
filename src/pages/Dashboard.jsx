@@ -1,10 +1,9 @@
 import { useMemo, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext.jsx';
-import { useData, statusLabel } from '../store/DataContext.jsx';
 import DonutChart from '../components/DonutChart.jsx';
 import TicketModal from '../components/TicketModal.jsx';
-import { fetchCoreData } from '../services/data.js';
+import { getDashboardStats } from '../services/dashboard.js';
 
 const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() &&
@@ -14,62 +13,36 @@ const isSameDay = (a, b) =>
 export default function Dashboard() {
   const { user } = useAuth();
   const isAdmin = user.role === 'admin';
-  const { users, loadUsers, loadAgents } = useData();
   const [ticketModalOpen, setTicketModalOpen] = useState(false);
-
-  const [tickets, setTickets] = useState([]);
-  const [notifications, setNotifications] = useState([]);
-  const [forms, setForms] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchCoreData()
-      .then(({ tickets, notifications, forms }) => {
-        if (cancelled) return;
-        setTickets(tickets);
-        setNotifications(notifications);
-        setForms(forms);
-      })
+    getDashboardStats()
+      .then((data) => { if (!cancelled) setStats(data); })
       .catch((err) => console.error('Dashboard fetch error:', err))
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  useEffect(() => { if (isAdmin) { loadUsers(); loadAgents(); } }, [isAdmin, loadUsers, loadAgents]);
-
   const now = new Date();
 
-  const scopedTickets = useMemo(
-    () => isAdmin ? tickets : tickets.filter((t) => t.assignedTo === user.id),
-    [tickets, user, isAdmin],
-  );
-
   const counts = useMemo(() => {
-    const base = {
-      total:     scopedTickets.length,
-      open:      scopedTickets.filter((t) => t.status === 'open').length,
-      progress:  scopedTickets.filter((t) => t.status === 'progress').length,
-      completed: scopedTickets.filter((t) => t.status === 'completed').length,
-      resolved:  scopedTickets.filter((t) => t.status === 'resolved').length,
-      overdue:   scopedTickets.filter(
-        (t) => t.dueDate && t.status !== 'completed' && t.status !== 'resolved' && new Date(t.dueDate) < now,
-      ).length,
-    };
-    if (!isAdmin) return base;
+    if (!stats) return { total: 0, open: 0, progress: 0, completed: 0, resolved: 0, overdue: 0, notificationsToday: 0, activeForms: 0, totalAgents: 0 };
     return {
-      ...base,
-      notificationsToday: notifications.filter((n) => isSameDay(new Date(n.sentAt), now)).length,
-      activeForms: forms.length,
-      totalAgents: users.filter((u) => u.role === 'agent').length,
+      total:              stats.total,
+      open:               stats.open,
+      progress:           stats.inProgress,
+      completed:          stats.completed,
+      resolved:           stats.resolved,
+      overdue:            stats.overdue,
+      notificationsToday: stats.notificationsToday,
+      activeForms:        stats.activeForms,
+      totalAgents:        stats.totalAgents,
     };
-  }, [scopedTickets, isAdmin, notifications, forms, users]);
-
-  const todayOpenTickets = useMemo(
-    () => scopedTickets.filter((t) => t.status === 'open' && isSameDay(new Date(t.createdAt), now)),
-    [scopedTickets]
-  );
+  }, [stats]);
 
   const chartData = [
     { label: 'Open',        value: counts.open,      color: 'var(--status-open)' },
@@ -78,14 +51,14 @@ export default function Dashboard() {
     { label: 'Resolved',    value: counts.resolved,  color: 'var(--status-resolved)' },
   ];
 
-  const userById = (id) => users.find((u) => u.id === id) || (id === user.id ? user : null);
+  const todayOpenTickets = stats?.todayOpenTickets ?? [];
 
   return (
     <div>
-      {/* Header — always visible */}
+      {/* Header */}
       <div className="page-head">
         <div>
-          <h1>{user.role === 'admin' ? 'Administrator Dashboard' : 'Agent Dashboard'}</h1>
+          <h1>{isAdmin ? 'Administrator Dashboard' : 'Agent Dashboard'}</h1>
           <div className="sub">
             Welcome back, <strong>{user.name}</strong> ·{' '}
             {now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
@@ -96,15 +69,11 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      {/* ── Skeleton while loading ── */}
       {ticketModalOpen && (
         <TicketModal
           mode="create"
           ticket={null}
-          onClose={(created) => {
-            if (created) setTickets((prev) => [created, ...prev]);
-            setTicketModalOpen(false);
-          }}
+          onClose={() => setTicketModalOpen(false)}
         />
       )}
 
@@ -134,6 +103,11 @@ export default function Dashboard() {
             </div>
           )}
 
+          {/* Sources breakdown — admin only */}
+          {isAdmin && stats?.sources?.length > 0 && (
+            <SourcesCard sources={stats.sources} total={stats.total} />
+          )}
+
           {/* Split section */}
           <div className="dashboard-split">
             {/* Today's open tickets */}
@@ -155,41 +129,37 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div>
-                  {todayOpenTickets.map((t) => {
-                    const assignee = userById(t.assignedTo);
-                    return (
-                      <Link
-                        to="/tickets"
-                        key={t.id}
-                        style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 12, alignItems: 'center', padding: '14px 4px', borderBottom: '1px solid var(--line)' }}
-                      >
-                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--brand-deep)', fontSize: 12 }}>
-                          {t.ticketNumber || t.id}
-                        </span>
-                        <div>
-                          <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.title}</div>
-                          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <span style={{ fontSize: 10, padding: '2px 8px', background: 'var(--brand-soft)', color: 'var(--brand-deep)', borderRadius: 100, fontWeight: 600, letterSpacing: '0.04em' }}>
-                              {t.type}
-                            </span>
-                            <span>{assignee ? `Assigned to ${assignee.name}` : 'Unassigned'}</span>
-                          </div>
+                  {todayOpenTickets.map((t) => (
+                    <Link
+                      to="/tickets"
+                      key={t.id}
+                      style={{ display: 'grid', gridTemplateColumns: '80px 1fr auto', gap: 12, alignItems: 'center', padding: '14px 4px', borderBottom: '1px solid var(--line)' }}
+                    >
+                      <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--brand-deep)', fontSize: 12 }}>
+                        {t.ticketNumber}
+                      </span>
+                      <div>
+                        <div style={{ fontWeight: 600, color: 'var(--ink)' }}>{t.title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 3, display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ fontSize: 10, padding: '2px 8px', background: 'var(--brand-soft)', color: 'var(--brand-deep)', borderRadius: 100, fontWeight: 600, letterSpacing: '0.04em' }}>
+                            {t.type}
+                          </span>
+                          <span>{t.assignedToName ? `Assigned to ${t.assignedToName}` : 'Unassigned'}</span>
                         </div>
-                        <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
-                      </Link>
-                    );
-                  })}
+                      </div>
+                      <span className={`badge badge-pri-${t.priority.toLowerCase()}`}>{t.priority}</span>
+                    </Link>
+                  ))}
                 </div>
               )}
             </div>
 
-            {/* Status donut + quick actions */}
+            {/* Status donut */}
             <div className="card">
               <h3 style={{ margin: '0 0 18px', fontSize: 14, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
                 Status Completion
               </h3>
               <DonutChart data={chartData} centerLabel="Completed" />
-
             </div>
           </div>
         </>
@@ -198,23 +168,17 @@ export default function Dashboard() {
   );
 }
 
-// ── Skeleton primitives ────────────────────────────────────────────────────
+// ── Skeleton ───────────────────────────────────────────────────────────────
 
 function Sk({ w = '100%', h = 14, r = 6, mb = 0 }) {
-  return (
-    <span
-      className="skeleton"
-      style={{ width: w, height: h, borderRadius: r, display: 'block', marginBottom: mb }}
-    />
-  );
+  return <span className="skeleton" style={{ width: w, height: h, borderRadius: r, display: 'block', marginBottom: mb }} />;
 }
 
 function DashboardSkeleton({ role }) {
   return (
     <>
-      {/* Row 1 skeleton — always 5 */}
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-        {Array.from({ length: 5 }).map((_, i) => (
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)' }}>
+        {Array.from({ length: 6 }).map((_, i) => (
           <div className="skeleton-stat-card" key={i}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <Sk w={88} h={11} />
@@ -225,7 +189,6 @@ function DashboardSkeleton({ role }) {
         ))}
       </div>
 
-      {/* Row 2 skeleton — admin only */}
       {role === 'admin' && (
         <div className="stats-grid">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -241,28 +204,13 @@ function DashboardSkeleton({ role }) {
       )}
 
       <div className="dashboard-split">
-        {/* Today's tickets skeleton */}
         <div className="skeleton-card">
-          {/* Card header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
             <Sk w={170} h={13} />
             <Sk w={30} h={22} r={100} />
           </div>
-
-          {/* 5 ticket row skeletons */}
           {Array.from({ length: 5 }).map((_, i) => (
-            <div
-              key={i}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '70px 1fr 58px',
-                gap: 14,
-                alignItems: 'center',
-                padding: '13px 0',
-                borderBottom: '1px solid var(--line)',
-                opacity: 1 - i * 0.15,
-              }}
-            >
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 58px', gap: 14, alignItems: 'center', padding: '13px 0', borderBottom: '1px solid var(--line)', opacity: 1 - i * 0.15 }}>
               <Sk h={13} r={4} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <Sk h={13} w="80%" />
@@ -272,16 +220,12 @@ function DashboardSkeleton({ role }) {
             </div>
           ))}
         </div>
-
-        {/* Donut + quick actions skeleton */}
         <div className="skeleton-card">
           <Sk w={150} h={13} mb={28} />
-
-          {/* Donut circle */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
             <Sk w={180} h={180} r="50%" />
             <div style={{ display: 'flex', gap: 18 }}>
-              {['Open', 'In Progress', 'Completed'].map((_, i) => (
+              {[0, 1, 2].map((i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Sk w={10} h={10} r="50%" />
                   <Sk w={60} h={11} />
@@ -289,7 +233,6 @@ function DashboardSkeleton({ role }) {
               ))}
             </div>
           </div>
-
         </div>
       </div>
     </>
@@ -324,16 +267,40 @@ function ActionCard({ label, icon, onClick, to }) {
       </div>
     </>
   );
-  if (to) {
-    return (
-      <Link to={to} className="stat-card" style={{ textDecoration: 'none', cursor: 'pointer' }}>
-        {inner}
-      </Link>
-    );
-  }
+  if (to) return <Link to={to} className="stat-card" style={{ textDecoration: 'none', cursor: 'pointer' }}>{inner}</Link>;
+  return <button onClick={onClick} className="stat-card" style={{ border: 'none', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>{inner}</button>;
+}
+
+// ── SourcesCard ────────────────────────────────────────────────────────────
+
+function SourcesCard({ sources, total }) {
+  const maxCount = Math.max(...sources.map((s) => s.count), 1);
+  const palette = ['var(--brand-deep)', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
   return (
-    <button onClick={onClick} className="stat-card" style={{ border: 'none', font: 'inherit', cursor: 'pointer', textAlign: 'left' }}>
-      {inner}
-    </button>
+    <div className="card" style={{ marginBottom: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        <h3 style={{ margin: 0, fontSize: 14, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+          Ticket Sources
+        </h3>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{total} total</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {sources.map((s, i) => {
+          const pct = Math.round((s.count / total) * 100);
+          const color = palette[i % palette.length];
+          return (
+            <div key={s.name}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{s.name}</span>
+                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{s.count} <span style={{ fontSize: 11 }}>({pct}%)</span></span>
+              </div>
+              <div style={{ height: 7, background: 'var(--line)', borderRadius: 100, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${(s.count / maxCount) * 100}%`, background: color, borderRadius: 100, transition: 'width 0.4s ease' }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

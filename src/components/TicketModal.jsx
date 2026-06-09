@@ -208,7 +208,14 @@ export default function TicketModal({ mode, ticket, onClose }) {
                 <span style={{ fontFamily: 'monospace', color: 'var(--brand-deep)', fontWeight: 600 }}>
                   {t.ticketNumber || t.id}
                 </span>{' '}
-                · Created by {author?.name || t.reportedByName || 'Unknown'} ·{' '}
+                · Created by{' '}
+                <span style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                  {author?.name || t.reportedByName || 'Unknown'}
+                </span>
+                {t.createdFrom && (
+                  <>{' '}· <span style={{ color: 'var(--brand-deep)' }}>via {t.createdFrom}</span></>
+                )}
+                {' '}·{' '}
                 {t.createdAt ? new Date(t.createdAt).toLocaleString() : ''}
               </div>
             )}

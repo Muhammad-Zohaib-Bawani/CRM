@@ -39,6 +39,7 @@ function normalizeTicket(t) {
       performedByName: a.performedByName,
       createdAt: a.createdAt,
     })),
+    createdFrom: t.createdFrom || null,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt || t.createdAt,
   };
