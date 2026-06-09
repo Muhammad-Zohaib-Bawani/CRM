@@ -53,8 +53,17 @@ export default function Tickets() {
   const [filterType, setFilterType] = useState('all');
   const [filterAssignee, setFilterAssignee] = useState('all');
   const [showOnlyMine, setShowOnlyMine] = useState(false);
-  const [dateFrom, setDateFrom] = useState(null);
-  const [dateTo, setDateTo] = useState(null);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d;
+  });
 
   const [modalMode, setModalMode] = useState(null);
   const [activeTicket, setActiveTicket] = useState(null);
@@ -286,7 +295,75 @@ export default function Tickets() {
         </label>
       </div>
 
-      {filtered.length === 0 ? (
+      {loadingTickets ? (
+        view === 'kanban' ? (
+          <div className="kanban">
+            {STATUSES.map((col) => (
+              <div key={col.key} className={`kanban-col col-${col.key}`}>
+                <h3>{col.label}<span className="count">—</span></h3>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} style={{ background: '#fff', borderRadius: 'var(--radius-sm)', padding: 14, marginBottom: 10, boxShadow: '0 2px 8px rgba(15,23,42,0.05)', borderLeft: '3px solid #e2e8f0' }}>
+                    <div className="skeleton" style={{ height: 10, width: '35%', marginBottom: 8 }} />
+                    <div className="skeleton" style={{ height: 14, width: '85%', marginBottom: 4 }} />
+                    <div className="skeleton" style={{ height: 14, width: '60%', marginBottom: 10 }} />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <div className="skeleton" style={{ height: 20, width: 52, borderRadius: 100 }} />
+                      <div className="skeleton" style={{ height: 20, width: 44, borderRadius: 100 }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : view === 'list' ? (
+          <div className="ticket-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th><th>Title</th><th>Type</th><th>Priority</th>
+                  <th>Assignee</th><th>Due</th><th>Status</th><th>Created</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <tr key={i}>
+                    <td><div className="skeleton" style={{ height: 12, width: 60 }} /></td>
+                    <td><div className="skeleton" style={{ height: 12, width: 200 }} /></td>
+                    <td><div className="skeleton" style={{ height: 20, width: 50, borderRadius: 100 }} /></td>
+                    <td><div className="skeleton" style={{ height: 20, width: 56, borderRadius: 100 }} /></td>
+                    <td><div className="skeleton" style={{ height: 12, width: 90 }} /></td>
+                    <td><div className="skeleton" style={{ height: 12, width: 70 }} /></td>
+                    <td><div className="skeleton" style={{ height: 20, width: 72, borderRadius: 100 }} /></td>
+                    <td><div className="skeleton" style={{ height: 12, width: 70 }} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="ticket-cards">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="ticket-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                  <div className="skeleton" style={{ height: 12, width: 60 }} />
+                  <div className="skeleton" style={{ height: 20, width: 60, borderRadius: 100 }} />
+                </div>
+                <div className="skeleton" style={{ height: 16, width: '80%', marginBottom: 6 }} />
+                <div className="skeleton" style={{ height: 12, width: '95%', marginBottom: 4 }} />
+                <div className="skeleton" style={{ height: 12, width: '70%', marginBottom: 14 }} />
+                <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+                  <div className="skeleton" style={{ height: 20, width: 52, borderRadius: 100 }} />
+                  <div className="skeleton" style={{ height: 20, width: 44, borderRadius: 100 }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div className="skeleton" style={{ height: 12, width: 80 }} />
+                  <div className="skeleton" style={{ height: 12, width: 60 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : filtered.length === 0 ? (
         <div className="empty-state">
           <i className="fa-solid fa-folder-open" />
           <h3>No tickets match your filters</h3>

@@ -160,8 +160,17 @@ export default function FormTracking() {
 
   const PAGE_SIZE = 10;
   const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState(null);
-  const [dateTo, setDateTo] = useState(null);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 6);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d;
+  });
   const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
