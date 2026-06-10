@@ -26,16 +26,8 @@ export function DataProvider({ children }) {
   const [agents, setAgents] = useState([]);
   const agentsLoadedRef = useRef(false);
 
-  // ── Contacts: lazy — Notifications page only ─────────────────────────────
-  const [managers, setManagers] = useState([]);
-  const [owners, setOwners] = useState([]);
-  const [horses, setHorses] = useState([]);
-  const [shows, setShows] = useState([]);
-  const [championships, setChampionships] = useState([]);
-  const [locations, setLocations] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [contactsLoading, setContactsLoading] = useState(false);
-  const contactsLoadedRef = useRef(false);
+
+
 
   const [toast, setToast] = useState(null);
 
@@ -44,19 +36,8 @@ export function DataProvider({ children }) {
     setTimeout(() => setToast(null), 2600);
   }, []);
 
-  // Clear lazy caches on logout
-  useEffect(() => {
-    if (!user) {
-      setUsers([]); setAgents([]);
-      setManagers([]); setOwners([]); setHorses([]); setShows([]);
-      setChampionships([]); setLocations([]); setContacts([]);
-      setManagedUsers([]); setRoles([]);
-      usersLoadedRef.current = false;
-      agentsLoadedRef.current = false;
-      contactsLoadedRef.current = false;
-      managedUsersLoadedRef.current = false;
-    }
-  }, [user]);
+
+
 
   // ── Lazy: users ───────────────────────────────────────────────────────────
   const loadUsers = useCallback(async () => {
@@ -99,27 +80,7 @@ export function DataProvider({ children }) {
     }
   }, []);
 
-  // ── Lazy: contacts ────────────────────────────────────────────────────────
-  const loadContacts = useCallback(async () => {
-    if (contactsLoadedRef.current) return;
-    contactsLoadedRef.current = true;
-    setContactsLoading(true);
-    try {
-      const result = await fetchContacts(users);
-      setManagers(result.managers);
-      setOwners(result.owners);
-      setHorses(result.horses);
-      setShows(result.shows);
-      setChampionships(result.championships);
-      setLocations(result.locations);
-      setContacts(result.contacts);
-    } catch (err) {
-      console.error('Failed to load contacts:', err);
-      contactsLoadedRef.current = false;
-    } finally {
-      setContactsLoading(false);
-    }
-  }, [users]);
+
 
   // ===== TICKETS =====
 
@@ -257,7 +218,6 @@ export function DataProvider({ children }) {
   const resetAll = useCallback(() => {
     usersLoadedRef.current = false;
     agentsLoadedRef.current = false;
-    contactsLoadedRef.current = false;
     managedUsersLoadedRef.current = false;
     setManagedUsers([]);
     setRoles([]);
@@ -273,8 +233,6 @@ export function DataProvider({ children }) {
         roles,
         addManagedUser, updateManagedUser, deleteManagedUser, resendUserInvitation,
         submitFormResponse,
-        managers, owners, horses, shows, championships, locations, contacts,
-        contactsLoading, loadContacts,
         toast, showToast,
         createTicket, updateTicket, updateTicketStatus, assignTicket, addComment,
         sendNotification,

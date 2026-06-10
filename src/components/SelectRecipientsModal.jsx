@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react';
-import { useData } from '../store/DataContext.jsx';
-import { ROLE_META } from '../enums/roles.js';
+import { useState, useEffect } from 'react';
+import { listUsers } from '../services/users.js';
+
+const PAGE_SIZE = 10;
 
 function Checkbox({ checked, indeterminate = false, onChange }) {
   const active = checked || indeterminate;
@@ -15,63 +16,96 @@ function Checkbox({ checked, indeterminate = false, onChange }) {
         transition: 'background 0.15s, border-color 0.15s',
       }}
     >
-      {checked && <i className="fa-solid fa-check" style={{ fontSize: 9, color: '#fff' }} />}
+      {checked      && <i className="fa-solid fa-check" style={{ fontSize: 9, color: '#fff' }} />}
       {!checked && indeterminate && <i className="fa-solid fa-minus" style={{ fontSize: 9, color: '#fff' }} />}
     </div>
   );
 }
 
 export default function SelectRecipientsModal({ onImport, onClose, currentlyImported = [] }) {
-  const { users, managedUsers } = useData();
+  const [users, setUsers]     = useState([]);
+  const [total, setTotal]     = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
+  const [page, setPage]       = useState(1);
+  const [search, setSearch]         = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
 
-  const allUsers = useMemo(() => {
-    const apiIds = new Set(users.map((u) => u.id));
-    return [...users, ...managedUsers.filter((u) => !apiIds.has(u.id))];
-  }, [users, managedUsers]);
+  // selected IDs + map of id→contact for cross-page tracking
+  const [selected, setSelected]               = useState(() => new Set(currentlyImported.map((c) => c.id)));
+  const [selectedContacts, setSelectedContacts] = useState(() => {
+    const m = new Map();
+    currentlyImported.forEach((c) => m.set(c.id, c));
+    return m;
+  });
 
-  const [selected, setSelected] = useState(() => new Set(currentlyImported.map((c) => c.id)));
-  const [search, setSearch] = useState('');
+  // Debounce search 400 ms, reset to page 1
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return allUsers;
-    return allUsers.filter(
-      (u) =>
-        u.name.toLowerCase().includes(q) ||
-        u.email.toLowerCase().includes(q) ||
-        (ROLE_META[u.role]?.label || u.role || '').toLowerCase().includes(q),
-    );
-  }, [allUsers, search]);
+  // Fetch on page / debounced search change
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setFetchError(null);
+    listUsers({ pageNumber: page, pageSize: PAGE_SIZE, search: debouncedSearch })
+      .then(({ items, total: t }) => {
+        if (!cancelled) { setUsers(items); setTotal(t); setLoading(false); }
+      })
+      .catch((err) => {
+        if (!cancelled) { setFetchError(err.message || 'Failed to load users'); setLoading(false); }
+      });
+    return () => { cancelled = true; };
+  }, [page, debouncedSearch]);
 
-  const allSelected = filtered.length > 0 && filtered.every((u) => selected.has(u.id));
-  const someSelected = !allSelected && filtered.some((u) => selected.has(u.id));
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  const hasNextPage = page < totalPages;
+  const hasPrevPage = page > 1;
 
-  const toggleOne = (id) =>
+  const allPageSelected  = users.length > 0 && users.every((u) => selected.has(u.id));
+  const somePageSelected = !allPageSelected && users.some((u) => selected.has(u.id));
+
+  const toggleOne = (id) => {
+    const contact = users.find((u) => u.id === id);
     setSelected((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-
-  const toggleAll = () =>
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allSelected) filtered.forEach((u) => next.delete(u.id));
-      else filtered.forEach((u) => next.add(u.id));
+    setSelectedContacts((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else if (contact) next.set(id, contact);
       return next;
     });
+  };
+
+  const toggleAll = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allPageSelected) users.forEach((u) => next.delete(u.id));
+      else users.forEach((u) => next.add(u.id));
+      return next;
+    });
+    setSelectedContacts((prev) => {
+      const next = new Map(prev);
+      if (allPageSelected) users.forEach((u) => next.delete(u.id));
+      else users.forEach((u) => next.set(u.id, u));
+      return next;
+    });
+  };
 
   const handleImport = () => {
-    const picked = allUsers
-      .filter((u) => selected.has(u.id))
-      .map((u) => ({
-        id: u.id,
-        name: u.name,
-        email: u.email,
-        initials: u.initials || (u.name || '').slice(0, 2).toUpperCase(),
-        userType: ROLE_META[u.role]?.label || u.role,
-        status: 'Active',
-      }));
+    const picked = [...selectedContacts.values()].map((u) => ({
+      id:       u.id,
+      name:     u.name,
+      email:    u.email,
+      initials: u.initials,
+      userType: u.roleName || u.role || 'User',
+      status:   u.isActive !== false ? 'Active' : 'Inactive',
+    }));
     onImport(picked);
     onClose();
   };
@@ -85,7 +119,7 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
           <div>
             <h2>Select Recipients</h2>
             <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-              {allUsers.length} user{allUsers.length === 1 ? '' : 's'} available
+              {total.toLocaleString()} user{total === 1 ? '' : 's'} available
             </div>
           </div>
           <span className="close" onClick={onClose}><i className="fa-solid fa-xmark" /></span>
@@ -94,17 +128,14 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
         <div className="modal-body" style={{ paddingTop: 16 }}>
 
           {/* ── Search ── */}
-          <div style={{
-            position: 'relative',
-            marginBottom: 16,
-          }}>
+          <div style={{ position: 'relative', marginBottom: 16 }}>
             <i className="fa-solid fa-magnifying-glass" style={{
               position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
               color: 'var(--muted)', fontSize: 13, pointerEvents: 'none',
             }} />
             <input
               type="text"
-              placeholder="Search by name, email or role…"
+              placeholder="Search by name or email…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
@@ -152,24 +183,46 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
           </div>
 
           {/* ── Table ── */}
-          <div className="import-table-wrap">
+          <div className="import-table-wrap" style={{ position: 'relative' }}>
+            {loading && users.length > 0 && (
+              <div style={{
+                position: 'absolute', inset: 0, borderRadius: 10, zIndex: 2,
+                background: 'rgba(255,255,255,0.65)', display: 'grid', placeItems: 'center',
+              }}>
+                <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 20, color: 'var(--brand)' }} />
+              </div>
+            )}
             <table className="import-table">
               <thead>
                 <tr>
                   <th style={{ width: 50, paddingLeft: 16 }}>
                     <Checkbox
-                      checked={allSelected}
-                      indeterminate={someSelected}
+                      checked={allPageSelected}
+                      indeterminate={somePageSelected}
                       onChange={toggleAll}
                     />
                   </th>
                   <th>User</th>
-                  <th style={{ width: 130 }}>Role</th>
+                  <th style={{ width: 140 }}>Role</th>
                   <th>Email</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading && users.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>
+                      <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: 22, color: 'var(--brand)', display: 'block', marginBottom: 8 }} />
+                      Loading users…
+                    </td>
+                  </tr>
+                ) : fetchError ? (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', padding: 40 }}>
+                      <i className="fa-solid fa-circle-exclamation" style={{ fontSize: 22, color: '#ef4444', display: 'block', marginBottom: 8 }} />
+                      <span style={{ color: '#ef4444', fontWeight: 600 }}>{fetchError}</span>
+                    </td>
+                  </tr>
+                ) : users.length === 0 ? (
                   <tr style={{ pointerEvents: 'none' }}>
                     <td colSpan={4} style={{ textAlign: 'center', padding: '36px 0', color: 'var(--muted)', fontSize: 13 }}>
                       <i className="fa-solid fa-magnifying-glass" style={{ display: 'block', fontSize: 22, opacity: 0.25, marginBottom: 10 }} />
@@ -177,39 +230,23 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((u) => {
+                  users.map((u) => {
                     const isSel = selected.has(u.id);
-                    const rm = ROLE_META[u.role] || { label: u.role, cls: 'type-user', icon: 'fa-user' };
                     return (
                       <tr key={u.id} onClick={() => toggleOne(u.id)} className={isSel ? 'is-selected' : ''}>
                         <td style={{ paddingLeft: 16 }}>
                           <Checkbox checked={isSel} onChange={() => toggleOne(u.id)} />
                         </td>
-
-                        {/* User */}
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div
-                              className="user-avatar-sm"
-                              style={{ width: 30, height: 30, fontSize: 11, flexShrink: 0 }}
-                            >
-                              {u.initials || (u.name || '').slice(0, 2).toUpperCase()}
-                            </div>
-                            <span style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13 }}>
-                              {u.name}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Role */}
-                        <td>
-                          <span className={`type-pill ${rm.cls}`}>
-                            <i className={`fa-solid ${rm.icon}`} style={{ marginRight: 5 }} />
-                            {rm.label}
+                          <span style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 13 }}>
+                            {u.name}
                           </span>
                         </td>
-
-                        {/* Email */}
+                        <td>
+                          <span className={`type-pill type-${(u.roleName || u.role || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                            {u.roleName || u.role || '—'}
+                          </span>
+                        </td>
                         <td style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--muted)' }}>
                           {u.email}
                         </td>
@@ -220,6 +257,34 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
               </tbody>
             </table>
           </div>
+
+          {/* ── Pagination ── */}
+          {!fetchError && totalPages > 1 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 12, paddingTop: 12,
+            }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={!hasPrevPage || loading}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <i className="fa-solid fa-chevron-left" /> Prev
+              </button>
+              <span style={{ fontSize: 13, color: 'var(--muted)', minWidth: 120, textAlign: 'center' }}>
+                Page <strong style={{ color: 'var(--ink)' }}>{page}</strong> of {totalPages.toLocaleString()}
+              </span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                disabled={!hasNextPage || loading}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next <i className="fa-solid fa-chevron-right" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ── Footer ── */}
@@ -242,10 +307,7 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
               <span style={{ color: 'var(--muted)' }}>No users selected</span>
             )}
           </div>
-
-          <button type="button" className="btn btn-ghost" onClick={onClose}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
           <button
             type="button"
             className="btn btn-primary"

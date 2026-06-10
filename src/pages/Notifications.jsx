@@ -11,7 +11,7 @@ import { extractFormId } from '../services/data.js';
 
 export default function Notifications() {
   const { user } = useAuth();
-  const { sendNotification, showToast, loadUsers, loadContacts, contactsLoading } = useData();
+  const { sendNotification, showToast } = useData();
   const navigate = useNavigate();
 
 
@@ -19,16 +19,14 @@ export default function Notifications() {
 
   useEffect(() => {
     getForms(1, 100).then(setForms).catch(console.error);
-    loadUsers();
-    loadContacts();
-  }, [loadUsers, loadContacts]);
+  }, []);
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [attachments, setAttachments] = useState([]);
 
   // Recipient management
-  const [imported, setImported] = useState([]); // array of contacts pulled in via Import
+  const [imported, setImported] = useState([]);
   const [excluded, setExcluded] = useState(() => new Set()); // ids unchecked from the imported list
 
   const [formPickerOpen, setFormPickerOpen] = useState(false);
@@ -214,7 +212,7 @@ export default function Notifications() {
               title={activeRecipients.length === 0 ? 'Import recipients first' : ''}
             >
               {sending
-                ? <><i className="fa-solid fa-circle-notch fa-spin" /> Sending…</>
+                ? <><i className="fa-solid fa-circle-notch fa-spin" /> Queuing…</>
                 : <><i className="fa-solid fa-paper-plane" /> Send Notification</>}
             </button>
           </div>

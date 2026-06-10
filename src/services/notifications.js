@@ -26,6 +26,10 @@ function normalizeNotification(n) {
         formSubmittedAt: r.formSubmittedAt ?? r.FormSubmittedAt ?? null,
       };
     }),
+    jobStatus:     n.jobStatus     || 'Queued',
+    jobStartedAt:  n.jobStartedAt  || null,
+    jobCompletedAt: n.jobCompletedAt || null,
+    jobError:      n.jobError      || null,
     createdAt: n.createdAt,
   };
 }
