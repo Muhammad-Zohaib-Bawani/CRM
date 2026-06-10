@@ -1,6 +1,9 @@
+import { useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData } from '../store/DataContext.jsx';
+import NotificationPanel from './NotificationPanel.jsx';
+import { getUnreadCount } from '../services/inboxNotifications.js';
 
 const NAV = {
   admin: [
@@ -22,6 +25,15 @@ export default function Layout() {
   const { toast, resetAll } = useData();
   const nav = useNavigate();
   const items = NAV[user.role] || [];
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchCount = useCallback(async () => {
+    const count = await getUnreadCount().catch(() => 0);
+    setUnreadCount(count);
+  }, []);
+
+  useEffect(() => { fetchCount(); }, [fetchCount]);
 
   const handleLogout = async () => {
     await logout();
@@ -39,9 +51,11 @@ export default function Layout() {
           <button className="icon-btn" title="Reset demo data" onClick={resetAll}>
             <i className="fa-solid fa-rotate-left" />
           </button>
-          <button className="icon-btn" title="Notifications">
+          <button className="icon-btn" title="Notifications" onClick={() => setPanelOpen(true)}>
             <i className="fa-regular fa-bell" />
-            <span className="dot" />
+            {unreadCount > 0
+              ? <span className="notif-count">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              : null}
           </button>
           <div className="user-chip">
             <div className="avatar">{user.initials}</div>
@@ -93,6 +107,13 @@ export default function Layout() {
           {toast.message}
         </div>
       )}
+
+      <NotificationPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        isAdmin={user.role === 'admin'}
+        onCountChange={fetchCount}
+      />
     </>
   );
 }
