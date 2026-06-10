@@ -233,7 +233,14 @@ export default function TicketModal({ mode, ticket, onClose }) {
     }
   };
 
-  const handleStatus = (status) => updateTicketStatus(ticket.id, status);
+  const handleStatus = async (status) => {
+    try {
+      await updateTicketStatus(ticket.id, status);
+      setFullTicket((prev) => prev ? { ...prev, status } : prev);
+    } catch {
+      // error already shown via toast
+    }
+  };
 
   const handleAssign = async (opt) => {
     setAssigning(true);
