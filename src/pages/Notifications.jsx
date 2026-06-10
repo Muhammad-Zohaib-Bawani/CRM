@@ -6,7 +6,6 @@ import RichTextEditor from '../components/RichTextEditor.jsx';
 import ImportRecipientsModal from '../components/ImportRecipientsModal.jsx';
 import SelectRecipientsModal from '../components/SelectRecipientsModal.jsx';
 import ImportFromExcelModal from '../components/ImportFromExcelModal.jsx';
-import { getNotifications } from '../services/notifications.js';
 import { getForms } from '../services/forms.js';
 import { extractFormId } from '../services/data.js';
 
@@ -15,11 +14,10 @@ export default function Notifications() {
   const { sendNotification, showToast, loadUsers, loadContacts, contactsLoading } = useData();
   const navigate = useNavigate();
 
-  const [notifications, setNotifications] = useState([]);
+
   const [forms, setForms] = useState([]);
 
   useEffect(() => {
-    getNotifications(1, 200).then(setNotifications).catch(console.error);
     getForms(1, 100).then(setForms).catch(console.error);
     loadUsers();
     loadContacts();
@@ -115,7 +113,6 @@ export default function Notifications() {
       if (record) {
         const fid = extractFormId(body);
         const attachedForm = fid ? forms.find((f) => f.id === fid) : null;
-        setNotifications((prev) => [{ ...record, formId: fid || null, formName: attachedForm?.name || null }, ...prev]);
       }
       setSubject('');
       setBody('');
@@ -145,9 +142,7 @@ export default function Notifications() {
         <div>
           <h1>Notifications</h1>
           <div className="sub">
-            Import recipients, compose your broadcast, send ·{' '}
-            <strong style={{ color: 'var(--brand-deep)' }}>{notifications.length}</strong>{' '}
-            sent in total
+            Import recipients, compose your broadcast, send it out, and track delivery history — all in one place.
           </div>
         </div>
         <button className="btn btn-ghost" onClick={() => navigate('/notification-history')}>

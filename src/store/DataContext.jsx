@@ -4,7 +4,7 @@ import * as ticketApi from '../services/tickets.js';
 import * as notifApi from '../services/notifications.js';
 import * as formApi from '../services/forms.js';
 import * as userApi from '../services/users.js';
-import { fetchUsers, fetchAgents, fetchManagedUsersAndRoles, fetchContacts } from '../services/data.js';
+import { fetchUsers, fetchAgents, fetchManagedUsersAndRoles } from '../services/data.js';
 import { TICKET_TYPES } from '../enums/tickets.js';
 
 const DataContext = createContext(null);

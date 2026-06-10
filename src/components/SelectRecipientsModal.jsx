@@ -94,24 +94,57 @@ export default function SelectRecipientsModal({ onImport, onClose, currentlyImpo
         <div className="modal-body" style={{ paddingTop: 16 }}>
 
           {/* ── Search ── */}
-          <div className="search" style={{ marginBottom: 14, position: 'relative' }}>
-            <i className="fa-solid fa-magnifying-glass" />
+          <div style={{
+            position: 'relative',
+            marginBottom: 16,
+          }}>
+            <i className="fa-solid fa-magnifying-glass" style={{
+              position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)',
+              color: 'var(--muted)', fontSize: 13, pointerEvents: 'none',
+            }} />
             <input
               type="text"
               placeholder="Search by name, email or role…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 40px 10px 38px',
+                border: '1.5px solid var(--line)',
+                borderRadius: 10,
+                background: '#f8fafc',
+                fontSize: 13,
+                color: 'var(--ink)',
+                outline: 'none',
+                transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--brand)';
+                e.target.style.background = '#fff';
+                e.target.style.boxShadow = '0 0 0 3px rgba(184,139,86,0.12)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--line)';
+                e.target.style.background = '#f8fafc';
+                e.target.style.boxShadow = 'none';
+              }}
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch('')}
+                title="Clear"
                 style={{
                   position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  color: 'var(--muted)', padding: '2px 4px', lineHeight: 1, fontSize: 13,
+                  width: 22, height: 22, borderRadius: 6,
+                  display: 'grid', placeItems: 'center',
+                  background: 'var(--line)', border: 'none', cursor: 'pointer',
+                  color: 'var(--muted)', fontSize: 10, transition: 'background 0.12s',
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#e2e8f0'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'var(--line)'}
               >
                 <i className="fa-solid fa-xmark" />
               </button>

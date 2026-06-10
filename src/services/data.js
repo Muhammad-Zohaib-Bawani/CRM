@@ -1,7 +1,6 @@
 import { getTickets } from './tickets.js';
 import { getNotifications } from './notifications.js';
 import { getForms } from './forms.js';
-import { getUsers, getAgents, getManagers, getOwners, getHorses, getShows, getChampionships, getLocations } from './contacts.js';
 import { listUsers, getRoles } from './users.js';
 
 export function extractFormId(html) {
@@ -46,29 +45,4 @@ export async function fetchManagedUsersAndRoles() {
   };
 }
 
-export async function fetchContacts(systemUsers = []) {
-  const [managerData, ownerData, horseData, showData, champData, locationData] =
-    await Promise.allSettled([
-      getManagers(),
-      getOwners(),
-      getHorses(),
-      getShows(),
-      getChampionships(),
-      getLocations(),
-    ]);
-  const managerList = settle(managerData);
-  const ownerList = settle(ownerData);
-  return {
-    managers: managerList,
-    owners: ownerList,
-    horses: settle(horseData),
-    shows: settle(showData),
-    championships: settle(champData),
-    locations: settle(locationData),
-    contacts: [
-      ...systemUsers.map((u) => ({ ...u, userType: u.role === 'admin' ? 'Admin' : 'Agent' })),
-      ...managerList,
-      ...ownerList,
-    ],
-  };
-}
+
