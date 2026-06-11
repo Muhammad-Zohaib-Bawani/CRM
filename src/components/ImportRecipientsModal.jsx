@@ -94,8 +94,41 @@ export default function ImportRecipientsModal({ onImport, onClose, currentlyImpo
     setSearch('');
   };
 
-  const selectedOnPage   = contacts.filter((c) => selected.has(c.id)).length;
-  const allPageSelected  = contacts.length > 0 && selectedOnPage === contacts.length;
+  const [selectingAll, setSelectingAll] = useState(false);
+
+  const selectedOnPage  = contacts.filter((c) => selected.has(c.id)).length;
+  const allPageSelected = contacts.length > 0 && selectedOnPage === contacts.length;
+
+  const selectAllFiltered = async () => {
+    setSelectingAll(true);
+    try {
+      const { items } = await fetchUsers({
+        page: 1,
+        pageSize: pagination.totalCount || 9999,
+        search: debouncedSearch,
+        roleIds:         filters.userTypes,
+        countryIds:      filters.countries,
+        showIds:         filters.shows,
+        championshipIds: filters.championships,
+        tournamentIds:   filters.tournaments,
+        genderIds:       filters.genders,
+      });
+      setSelected((prev) => {
+        const next = new Set(prev);
+        items.forEach((c) => next.add(c.id));
+        return next;
+      });
+      setSelectedContacts((prev) => {
+        const next = new Map(prev);
+        items.forEach((c) => next.set(c.id, c));
+        return next;
+      });
+    } catch (err) {
+      console.error('Failed to select all:', err);
+    } finally {
+      setSelectingAll(false);
+    }
+  };
 
   const toggleOne = (id) => {
     const contact = contacts.find((c) => c.id === id);
@@ -261,6 +294,17 @@ export default function ImportRecipientsModal({ onImport, onClose, currentlyImpo
             >
               <i className={`fa-solid ${allPageSelected ? 'fa-square-check' : 'fa-square'}`} />
               {allPageSelected ? 'Deselect page' : 'Select page'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-gold"
+              onClick={selectAllFiltered}
+              disabled={pagination.totalCount === 0 || loadingUsers || selectingAll}
+            >
+              {selectingAll
+                ? <><i className="fa-solid fa-circle-notch fa-spin" /> Selecting…</>
+                : <><i className="fa-solid fa-check-double" /> Select all {pagination.totalCount.toLocaleString()}</>
+              }
             </button>
           </div>
 
