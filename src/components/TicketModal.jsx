@@ -8,6 +8,7 @@ import {
   addAttachment as addAttachmentApi,
   deleteAttachment as deleteAttachmentApi,
 } from "../services/tickets.js";
+import { fetchAgents } from "../services/data.js";
 import { post } from "../api/client.js";
 import { rsStyles, toOptions } from "../utils/selectStyles.js";
 import { PRIORITIES, PRIORITY_OPTS } from "../enums/tickets.js";
@@ -16,7 +17,6 @@ export default function TicketModal({ mode, ticket, onClose }) {
   const { user } = useAuth();
   const {
     users,
-    agents,
     ticketTypes,
     createTicket,
     updateTicket,
@@ -25,6 +25,9 @@ export default function TicketModal({ mode, ticket, onClose }) {
     addComment,
     showToast,
   } = useData();
+
+  const [agents, setAgents] = useState([]);
+  useEffect(() => { fetchAgents().then(setAgents).catch(console.error); }, []);
 
   // Fetch full detail (with comments) when viewing an existing ticket
   const [fullTicket, setFullTicket] = useState(ticket);
@@ -45,7 +48,6 @@ export default function TicketModal({ mode, ticket, onClose }) {
     user.role === "admin" || (t && t.assignedTo === user.id);
   const canComment = !isCreate;
 
-  // agents comes directly from DataContext (fetched from /users/agents endpoint)
   const typeOpts = toOptions(ticketTypes);
   const agentOpts = [
     { value: "", label: "— Unassigned —" },

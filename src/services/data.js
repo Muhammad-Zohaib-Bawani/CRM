@@ -2,6 +2,20 @@ import { getTickets } from './tickets.js';
 import { getNotifications } from './notifications.js';
 import { getForms } from './forms.js';
 import { listUsers, getRoles } from './users.js';
+import { get } from '../api/client.js';
+
+function initials(name) {
+  return (name || '').split(' ').filter(Boolean).map((w) => w[0].toUpperCase()).join('').slice(0, 2);
+}
+
+export async function fetchAgents() {
+  const data = await get('/users/agents');
+  const items = Array.isArray(data) ? data : (data?.items || []);
+  return items.map((u) => {
+    const name = u.fullName || `${u.firstName || ''} ${u.lastName || ''}`.trim();
+    return { id: u.id, name, email: u.email || '', initials: initials(name) };
+  });
+}
 
 export function extractFormId(html) {
   if (!html) return null;
@@ -28,10 +42,6 @@ export async function fetchCoreData() {
 
 export async function fetchUsers() {
   return getUsers();
-}
-
-export async function fetchAgents() {
-  return getAgents();
 }
 
 export async function fetchManagedUsersAndRoles() {

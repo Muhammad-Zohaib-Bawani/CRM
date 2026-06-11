@@ -103,11 +103,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* Sources breakdown — admin only */}
-          {isAdmin && stats?.sources?.length > 0 && (
-            <SourcesCard sources={stats.sources} total={stats.total} />
-          )}
-
           {/* Split section */}
           <div className="dashboard-split">
             {/* Today's open tickets */}
@@ -162,6 +157,11 @@ export default function Dashboard() {
               <DonutChart data={chartData} centerLabel="Completed" />
             </div>
           </div>
+
+          {/* Sources breakdown — admin only */}
+          {isAdmin && stats?.sources?.length > 0 && (
+            <SourcesCard sources={stats.sources} total={stats.total} />
+          )}
         </>
       )}
     </div>
@@ -235,6 +235,33 @@ function DashboardSkeleton({ role }) {
           </div>
         </div>
       </div>
+
+      {role === 'admin' && (
+        <div className="skeleton-card" style={{ marginTop: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <Sk w={130} h={13} />
+            <Sk w={60} h={22} r={100} />
+          </div>
+          <div style={{ display: 'flex', gap: 0, alignItems: 'flex-end', justifyContent: 'space-around', height: 208, paddingBottom: 0 }}>
+            {[100, 60, 85, 40, 70].map((h, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1 }}>
+                <Sk w={14} h={13} r={4} />
+                <Sk w="60%" h={h} r="6px 6px 0 0" />
+                <Sk w={48} h={11} r={4} />
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: '2px solid var(--line)', marginBottom: 16 }} />
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {[72, 88, 64, 80].map((w, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Sk w={10} h={10} r={3} />
+                <Sk w={w} h={11} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -273,31 +300,63 @@ function ActionCard({ label, icon, onClick, to }) {
 
 // ── SourcesCard ────────────────────────────────────────────────────────────
 
+const PALETTE = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#14b8a6', '#3b82f6'];
+
 function SourcesCard({ sources, total }) {
   const maxCount = Math.max(...sources.map((s) => s.count), 1);
-  const palette = ['var(--brand-deep)', '#10b981', '#f59e0b', '#6366f1', '#ec4899', '#14b8a6'];
+  const BAR_H = 160;
+
   return (
-    <div className="card" style={{ marginBottom: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+    <div className="card" style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h3 style={{ margin: 0, fontSize: 14, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--muted)' }}>
           Ticket Sources
         </h3>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{total} total</span>
+        <span style={{ fontSize: 12, color: 'var(--brand-deep)', background: 'var(--brand-soft)', padding: '3px 10px', borderRadius: 100, fontWeight: 600 }}>
+          {total} total
+        </span>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      <div style={{ display: 'flex', gap: 0, alignItems: 'flex-end', justifyContent: 'space-around', height: BAR_H + 48, paddingBottom: 0 }}>
         {sources.map((s, i) => {
-          const pct = Math.round((s.count / total) * 100);
-          const color = palette[i % palette.length];
+          const pct = total ? Math.round((s.count / total) * 100) : 0;
+          const barHeight = Math.max((s.count / maxCount) * BAR_H, 4);
+          const color = PALETTE[i % PALETTE.length];
           return (
-            <div key={s.name}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}>{s.name}</span>
-                <span style={{ fontSize: 13, color: 'var(--muted)' }}>{s.count} <span style={{ fontSize: 11 }}>({pct}%)</span></span>
+            <div key={s.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+              {/* count label */}
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)' }}>{s.count}</span>
+              {/* bar */}
+              <div style={{ width: '60%', maxWidth: 48, height: barHeight, background: color, borderRadius: '6px 6px 0 0', transition: 'height 0.5s ease', position: 'relative' }}>
+                {/* pct tooltip inside bar */}
+                {barHeight > 28 && (
+                  <span style={{ position: 'absolute', bottom: 6, left: 0, right: 0, textAlign: 'center', fontSize: 10, fontWeight: 700, color: '#fff', opacity: 0.9 }}>
+                    {pct}%
+                  </span>
+                )}
               </div>
-              <div style={{ height: 7, background: 'var(--line)', borderRadius: 100, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${(s.count / maxCount) * 100}%`, background: color, borderRadius: 100, transition: 'width 0.4s ease' }} />
-              </div>
+              {/* source label */}
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2, maxWidth: 72, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={s.name}>
+                {s.name}
+              </span>
             </div>
+          );
+        })}
+      </div>
+
+      {/* x-axis baseline */}
+      <div style={{ borderTop: '2px solid var(--line)', marginTop: 0 }} />
+
+      {/* legend */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 16 }}>
+        {sources.map((s, i) => {
+          const pct = total ? Math.round((s.count / total) * 100) : 0;
+          return (
+            <span key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--muted)' }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: PALETTE[i % PALETTE.length], display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontWeight: 600, color: 'var(--ink)' }}>{s.name}</span>
+              <span>{pct}%</span>
+            </span>
           );
         })}
       </div>

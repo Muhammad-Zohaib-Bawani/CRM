@@ -4,6 +4,7 @@ import DatePicker from 'react-datepicker';
 import { useAuth } from '../store/AuthContext.jsx';
 import { useData, statusLabel } from '../store/DataContext.jsx';
 import { getTickets, getTicketById } from '../services/tickets.js';
+import { fetchAgents } from '../services/data.js';
 import TicketModal from '../components/TicketModal.jsx';
 import { rsStylesCompact, findOption, toOptions } from '../utils/selectStyles.js';
 import { STATUSES, STATUS_OPTS, PRIORITY_FILTER_OPTS, TYPE_META } from '../enums/tickets.js';
@@ -28,10 +29,11 @@ function TypePill({ type }) {
 
 export default function Tickets() {
   const { user } = useAuth();
-  const { users, agents, ticketTypes, updateTicketStatus, showToast, loadUsers, loadAgents } = useData();
+  const { users, ticketTypes, updateTicketStatus, showToast, loadUsers } = useData();
 
   const [tickets, setTickets] = useState([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [agents, setAgents] = useState([]);
 
   const fetchTickets = useCallback(async () => {
     setLoadingTickets(true);
@@ -44,7 +46,11 @@ export default function Tickets() {
     }
   }, []);
 
-  useEffect(() => { fetchTickets(); loadUsers(); loadAgents(); }, [fetchTickets, loadUsers, loadAgents]);
+  useEffect(() => {
+    fetchTickets();
+    loadUsers();
+    fetchAgents().then(setAgents).catch(console.error);
+  }, [fetchTickets, loadUsers]);
 
   const [view, setView] = useState('kanban');
   const [search, setSearch] = useState('');
@@ -69,7 +75,6 @@ export default function Tickets() {
   const [activeTicket, setActiveTicket] = useState(null);
 
   const canCreate = user.role === 'admin';
-  // agents comes directly from DataContext (fetched from /api/v1/users/agents)
 
   const typeOpts = toOptions(ticketTypes, 'All types');
   const agentOpts = [

@@ -8,12 +8,6 @@ function stripHtml(html) {
   return (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
 }
 
-function getTodayMidnight() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
 const JOB_STATUS_META = {
   Queued:          { label: 'Queued',           color: '#92400e', bg: '#fef3c7', icon: 'fa-clock' },
   Processing:      { label: 'Sending…',         color: '#1e40af', bg: '#dbeafe', icon: 'fa-circle-notch fa-spin' },
@@ -58,14 +52,18 @@ function DeliveryCount({ recipients }) {
 
 export default function NotificationHistory() {
   const [notifications, setNotifications] = useState([]);
-  const [tab, setTab]       = useState('recent');
+  const [loading, setLoading]   = useState(true);
   const [search, setSearch] = useState('');
 
-  const load = useCallback(() => {
-    getNotifications(1, 200).then(setNotifications).catch(console.error);
+  const load = useCallback((showSpinner = false) => {
+    if (showSpinner) setLoading(true);
+    getNotifications(1, 200)
+      .then(setNotifications)
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(true); }, [load]);
 
   // Auto-poll while any job is still active
   const hasActiveJobs = notifications.some(
@@ -77,35 +75,13 @@ export default function NotificationHistory() {
     return () => clearInterval(timer);
   }, [hasActiveJobs, load]);
 
-  const todayTs = getTodayMidnight();
-
-  const recentNotifs = useMemo(
-    () => notifications.filter((n) => {
-      const d = new Date(n.sentAt || n.createdAt);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() === todayTs;
-    }),
-    [notifications, todayTs]
-  );
-
-  const previousNotifs = useMemo(
-    () => notifications.filter((n) => {
-      const d = new Date(n.sentAt || n.createdAt);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() < todayTs;
-    }),
-    [notifications, todayTs]
-  );
-
-  const baseList = tab === 'recent' ? recentNotifs : previousNotifs;
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return baseList;
-    return baseList.filter(
+    if (!q) return notifications;
+    return notifications.filter(
       (n) => n.subject.toLowerCase().includes(q) || stripHtml(n.body).toLowerCase().includes(q)
     );
-  }, [baseList, search]);
+  }, [notifications, search]);
 
   const grouped = useMemo(() => {
     const groups = new Map();
@@ -142,39 +118,19 @@ export default function NotificationHistory() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="notif-history-tabs">
-        <button
-          className={`notif-tab ${tab === 'recent' ? 'active' : ''}`}
-          onClick={() => { setTab('recent'); setSearch(''); }}
-        >
-          <i className="fa-solid fa-clock" />
-          Recent Notifications
-          <span className="notif-tab-count">{recentNotifs.length}</span>
-        </button>
-        <button
-          className={`notif-tab ${tab === 'previous' ? 'active' : ''}`}
-          onClick={() => { setTab('previous'); setSearch(''); }}
-        >
-          <i className="fa-solid fa-calendar-days" />
-          Previous Notifications
-          <span className="notif-tab-count">{previousNotifs.length}</span>
-        </button>
-      </div>
-
       {/* Summary Cards */}
       <div className="history-summary" style={{ marginBottom: 20, marginTop: 20 }}>
         <div className="summary-card">
           <div>
-            <div className="lbl">{tab === 'recent' ? "Today's Broadcasts" : 'Past Broadcasts'}</div>
-            <div className="val">{filtered.length}</div>
+            <div className="lbl">All Broadcasts</div>
+            <div className="val">{loading ? '—' : filtered.length}</div>
           </div>
           <div className="icon"><i className="fa-solid fa-paper-plane" /></div>
         </div>
         <div className="summary-card">
           <div>
             <div className="lbl">Total Recipients</div>
-            <div className="val">{totalRecipients}</div>
+            <div className="val">{loading ? '—' : totalRecipients}</div>
           </div>
           <div className="icon"><i className="fa-solid fa-users" /></div>
         </div>
@@ -182,7 +138,7 @@ export default function NotificationHistory() {
           <div>
             <div className="lbl">Last Sent</div>
             <div className="val" style={{ fontSize: 16 }}>
-              {lastSent ? lastSent.toLocaleDateString() : '—'}
+              {loading ? '—' : lastSent ? lastSent.toLocaleDateString() : '—'}
             </div>
           </div>
           <div className="icon"><i className="fa-solid fa-clock" /></div>
@@ -202,24 +158,24 @@ export default function NotificationHistory() {
         </div>
       </div>
 
-      {/* Notification List */}
-      {filtered.length === 0 ? (
+      {/* Loading skeleton */}
+      {loading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="history-row">
+              <div className="history-row-icon skeleton" style={{ borderRadius: '50%' }} />
+              <div className="history-row-body" style={{ display: 'flex', flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
+                <span className="skeleton" style={{ height: 14, width: `${30 + (i * 11) % 35}%` }} />
+                <span className="skeleton" style={{ height: 12, width: `${50 + (i * 7) % 30}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="empty-state" style={{ padding: 60 }}>
           <i className="fa-solid fa-paper-plane" />
-          <h3>
-            {tab === 'recent'
-              ? 'No notifications sent today'
-              : search
-              ? 'No matching broadcasts'
-              : 'No previous notifications'}
-          </h3>
-          <p>
-            {tab === 'recent'
-              ? 'Broadcasts sent today will appear here.'
-              : search
-              ? 'Try clearing the search.'
-              : 'All past broadcasts will appear here once sent.'}
-          </p>
+          <h3>{search ? 'No matching broadcasts' : 'No notifications yet'}</h3>
+          <p>{search ? 'Try clearing the search.' : 'Broadcasts will appear here once sent.'}</p>
         </div>
       ) : (
         <div className="history-groups">
@@ -241,8 +197,6 @@ export default function NotificationHistory() {
                 {items.map((n) => {
                   const dateObj = new Date(n.sentAt || n.createdAt);
                   const preview = stripHtml(n.body);
-                  const sentCount   = n.recipients?.filter(r => r.status === 'Sent').length   ?? 0;
-                  const failedCount = n.recipients?.filter(r => r.status === 'Failed').length  ?? 0;
                   return (
                     <div key={n.id} className="history-row">
                       <div className="history-row-icon">
