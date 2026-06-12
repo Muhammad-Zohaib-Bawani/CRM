@@ -102,25 +102,35 @@ export default function ImportRecipientsModal({ onImport, onClose, currentlyImpo
   const selectAllFiltered = async () => {
     setSelectingAll(true);
     try {
-      const { items } = await fetchUsers({
-        page: 1,
-        pageSize: pagination.totalCount || 9999,
-        search: debouncedSearch,
+      const commonParams = {
+        search:          debouncedSearch,
         roleIds:         filters.userTypes,
         countryIds:      filters.countries,
         showIds:         filters.shows,
         championshipIds: filters.championships,
         tournamentIds:   filters.tournaments,
         genderIds:       filters.genders,
-      });
+      };
+
+      const allItems = [];
+      let pg = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { items, pagination: info } = await fetchUsers({ page: pg, pageSize: pagination.totalCount, ...commonParams });
+        allItems.push(...items);
+        hasMore = info.hasNextPage;
+        pg += 1;
+      }
+
       setSelected((prev) => {
         const next = new Set(prev);
-        items.forEach((c) => next.add(c.id));
+        allItems.forEach((c) => next.add(c.id));
         return next;
       });
       setSelectedContacts((prev) => {
         const next = new Map(prev);
-        items.forEach((c) => next.set(c.id, c));
+        allItems.forEach((c) => next.set(c.id, c));
         return next;
       });
     } catch (err) {
